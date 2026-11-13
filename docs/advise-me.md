@@ -59,8 +59,8 @@ It is cached until refreshed. Spinners cover the fetch and the study.
 
 Profiles exist for Nigeria, Kenya, Ghana, South Africa, the UK, the US, Canada,
 India and the UAE, with a generic fallback. They cover registration, tax,
-payments, ad rules and data protection. They are general guidance, not legal or
-tax advice.
+payments, ad rules and data protection. They are general guidance, not legal,
+tax or investment advice.
 
 ## Floating chat
 

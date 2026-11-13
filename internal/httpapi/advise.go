@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"html"
 	"net/http"
 	"net/url"
@@ -15,6 +16,7 @@ import (
 	"github.com/davepartner/crew/internal/advise"
 	"github.com/davepartner/crew/internal/llm"
 	"github.com/davepartner/crew/internal/presets"
+	"github.com/davepartner/crew/internal/research"
 	"github.com/davepartner/crew/internal/store"
 )
 
@@ -71,13 +73,23 @@ func (s *Server) handleStudyCompany(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	companyJSON, _ := json.Marshal(map[string]any{
+	studyContext := map[string]any{
 		"name": company.Name, "business": company.BusinessKey, "country": company.Country,
 		"website": company.Website, "support_email": company.SupportEmail,
 		"description": company.Description, "audience": company.Audience, "tone": company.Tone,
 		"stage": report.Stage, "score": report.Score, "country_profile": report.Country,
 		"sections": report.Sections, "next": report.Next,
-	})
+	}
+	if snapshots, err := s.store.ListFinancialSnapshots(r.Context(), company.ID); err == nil && len(snapshots) > 0 {
+		studyContext["financial_model"] = financialContext(snapshots)
+	}
+	if files, err := s.store.ListCompanyFiles(r.Context(), company.ID); err == nil {
+		studyContext["files"] = fileContext(files, 7000)
+	}
+	if researchText, _ := s.webResearch(r.Context(), company, company.Name+" "+company.BusinessKey+" "+company.Country+" market customers competitors pricing"); researchText != "" {
+		studyContext["web_research"] = researchText
+	}
+	companyJSON, _ := json.Marshal(studyContext)
 
 	system := `You are a practical business operator advising a small company.
 Use only the supplied company data and the country profile. Do not invent revenue,
@@ -199,12 +211,24 @@ func (s *Server) handleAdviceChat(w http.ResponseWriter, r *http.Request) {
 		sources = append(sources, chatSource{Title: "Wikipedia: " + result.Title, URL: result.URL})
 	}
 
-	contextJSON, _ := json.Marshal(map[string]any{
+	if researchText, webSources := s.webResearchDetailed(r.Context(), company, message+" "+company.Name+" "+businessName+" "+company.Country); researchText != "" {
+		webContext += "\n\nLIVE WEB / INDUSTRY:\n" + researchText
+		sources = append(sources, webSources...)
+	}
+
+	chatContext := map[string]any{
 		"company": company, "stage": report.StageLabel, "score": report.Score,
 		"next": report.Next, "sections": report.Sections,
 		"agents": summarizeAgents(input.Agents), "tasks": summarizeTasks(input.Tasks),
 		"campaigns": len(input.Campaigns), "country": report.Country,
-	})
+	}
+	if snapshots, err := s.store.ListFinancialSnapshots(r.Context(), company.ID); err == nil && len(snapshots) > 0 {
+		chatContext["financial_model"] = financialContext(snapshots)
+	}
+	if files, err := s.store.ListCompanyFiles(r.Context(), company.ID); err == nil {
+		chatContext["files"] = fileContext(files, 6000)
+	}
+	contextJSON, _ := json.Marshal(chatContext)
 
 	system := `You are the founder's operator. Answer questions about this company using the supplied
 company data and web extracts. Be concrete, use numbers from the data, and say "I don't know"
@@ -399,6 +423,65 @@ func wikiSearch(ctx context.Context, query string, limit int) []wikiResult {
 		})
 	}
 	return out
+}
+
+func fileContext(files []store.CompanyFile, budget int) []map[string]string {
+	out := make([]map[string]string, 0, 3)
+	used := 0
+	for _, file := range files {
+		text := strings.TrimSpace(file.Text)
+		if text == "" || used >= budget {
+			continue
+		}
+		if len(text) > 2500 {
+			text = text[:2500]
+		}
+		if used+len(text) > budget {
+			text = text[:budget-used]
+		}
+		out = append(out, map[string]string{"name": file.Name, "mime": file.Mime, "text": text})
+		used += len(text)
+		if len(out) >= 3 {
+			break
+		}
+	}
+	return out
+}
+
+func (s *Server) webResearch(ctx context.Context, company *store.Company, query string) (string, []chatSource) {
+	return s.webResearchDetailed(ctx, company, query)
+}
+
+func (s *Server) webResearchDetailed(ctx context.Context, company *store.Company, query string) (string, []chatSource) {
+	if s.cfg.Env == "test" {
+		return "", nil
+	}
+
+	braveKey := ""
+	if config, err := s.loadIntegration(ctx, company.ID, "brave_search"); err == nil {
+		braveKey = config["api_key"]
+	}
+
+	var builder strings.Builder
+	sources := make([]chatSource, 0, 5)
+
+	for _, result := range research.Search(ctx, query, braveKey) {
+		if builder.Len() > 3500 {
+			break
+		}
+		builder.WriteString("\n- " + result.Title + " (" + result.Provider + "): " + result.Snippet + "\n  " + result.URL)
+		sources = append(sources, chatSource{Title: result.Provider + ": " + result.Title, URL: result.URL})
+	}
+
+	if company.Ticker != "" {
+		if quote, err := research.Market(ctx, company.Ticker); err == nil {
+			builder.WriteString(fmt.Sprintf("\n- Market: %s %s %.2f, previous %.2f, change %.2f%%, currency %s, as of %s\n  %s",
+				quote.Ticker, "", quote.Price, quote.Previous, quote.ChangePct, quote.Currency, quote.AsOf, quote.URL))
+			sources = append(sources, chatSource{Title: "Market data: " + quote.Ticker, URL: quote.URL})
+		}
+	}
+
+	return builder.String(), sources
 }
 
 var errNoModel = errors.New("no model")

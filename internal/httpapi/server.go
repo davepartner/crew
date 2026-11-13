@@ -84,6 +84,27 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("PATCH /api/companies/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleUpdateCompany))))
 	mux.HandleFunc("DELETE /api/companies/{id}", s.requireUser(s.requireCompany(s.requireRole("owner", s.handleDeleteCompany))))
 
+	mux.HandleFunc("GET /api/integrations", s.requireUser(s.requireCompany(s.handleListIntegrations)))
+	mux.HandleFunc("PUT /api/integrations/{kind}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleSaveIntegration))))
+	mux.HandleFunc("DELETE /api/integrations/{kind}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteIntegration))))
+	mux.HandleFunc("POST /api/integrations/{kind}/test", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleTestIntegration))))
+	mux.HandleFunc("GET /api/integrations/{kind}/overview", s.requireUser(s.requireCompany(s.handleIntegrationOverview)))
+	mux.HandleFunc("POST /api/send/email", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleSendEmail))))
+	mux.HandleFunc("POST /api/send/whatsapp", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleSendWhatsApp))))
+
+	mux.HandleFunc("GET /api/financials", s.requireUser(s.requireCompany(s.handleFinancials)))
+	mux.HandleFunc("POST /api/financials", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleCreateFinancials))))
+	mux.HandleFunc("DELETE /api/financials/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteFinancials))))
+
+	mux.HandleFunc("GET /api/files", s.requireUser(s.requireCompany(s.handleListFiles)))
+	mux.HandleFunc("POST /api/files", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleUploadFile))))
+	mux.HandleFunc("GET /api/files/{id}/download", s.requireUser(s.requireCompany(s.handleDownloadFile)))
+	mux.HandleFunc("DELETE /api/files/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteFile))))
+
+	mux.HandleFunc("GET /api/products", s.requireUser(s.requireCompany(s.handleListProducts)))
+	mux.HandleFunc("POST /api/products", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleCreateProduct))))
+	mux.HandleFunc("DELETE /api/products/{id}", s.requireUser(s.requireCompany(s.requireRole("owner", s.handleDeleteProduct))))
+
 	mux.HandleFunc("GET /api/members", s.requireUser(s.requireCompany(s.handleListMembers)))
 	mux.HandleFunc("POST /api/members", s.requireUser(s.requireCompany(s.requireRole("owner", s.handleAddMember))))
 	mux.HandleFunc("DELETE /api/members/{id}", s.requireUser(s.requireCompany(s.requireRole("owner", s.handleRemoveMember))))

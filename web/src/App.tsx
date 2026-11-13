@@ -313,6 +313,7 @@ function Shell({
                   </span>
                   <span className="grow" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {item.name}
+                    {item.is_product ? <span className="tiny muted"> · product</span> : null}
                   </span>
                   {item.id === company.id ? <span aria-hidden="true">✓</span> : null}
                 </button>
@@ -441,6 +442,7 @@ function Shell({
             ☰
           </button>
           <span className="brand-name">{company.name}</span>
+          {company.is_product ? <span className="badge badge-working">Product</span> : null}
           {company.role === "viewer" ? <span className="badge badge-todo">View only</span> : null}
 
           <button

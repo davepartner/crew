@@ -10,6 +10,8 @@ import {
   type ChatSource,
   type Company,
   type CompanyAdvice,
+  type CompanyFile,
+  type FinancialModel,
   type BusinessPreset,
 } from "../api";
 import { Link, navigate } from "../router";
@@ -39,6 +41,7 @@ export function AdviseMe() {
   const [studyError, setStudyError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [agentRec, setAgentRec] = useState<AdviceAgent | null>(null);
+  const [share, setShare] = useState<"email" | "whatsapp" | null>(null);
 
   useEffect(() => {
     api
@@ -169,6 +172,12 @@ export function AdviseMe() {
         <span style={{ width: `${report.score}%` }} />
       </div>
 
+      <div className="advise-share-row">
+        <span className="tiny muted">Share this study</span>
+        <Button size="sm" onClick={() => setShare("email")}>Email report</Button>
+        <Button size="sm" onClick={() => setShare("whatsapp")}>WhatsApp</Button>
+      </div>
+
       <section className="card advise-next mt-16">
         <div className="row-between" style={{ alignItems: "flex-start" }}>
           <div>
@@ -183,6 +192,8 @@ export function AdviseMe() {
           ))}
         </ol>
       </section>
+
+      <CompanyData currency={report.country.currency} />
 
       <StudyCard
         advice={advice}
@@ -224,7 +235,7 @@ export function AdviseMe() {
           </div>
         </div>
         <p className="tiny muted mt-16">
-          General guidance, not legal or tax advice. Confirm with a local professional.
+          General guidance, not legal, tax or investment advice. Confirm with a local professional.
         </p>
       </section>
 
@@ -236,6 +247,14 @@ export function AdviseMe() {
           setAgentRec(null);
           navigate(`/helpers/${agent.id}`);
         }}
+      />
+
+      <ShareModal
+        kind={share}
+        company={company}
+        report={report}
+        advice={advice}
+        onClose={() => setShare(null)}
       />
 
       <AdviceChat company={company} enabled={report.has_model} />
@@ -542,6 +561,255 @@ function StudyCard({
   );
 }
 
+function CompanyData({ currency }: { currency: string }) {
+  return (
+    <div className="advise-data-grid">
+      <FilesCard />
+      <FinancialCard currency={currency} />
+    </div>
+  );
+}
+
+function FilesCard() {
+  const [files, setFiles] = useState<CompanyFile[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const input = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    api
+      .files()
+      .then((result) => setFiles(result.files))
+      .catch(() => setFiles([]));
+  }, []);
+
+  async function upload(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.uploadFile(file);
+      setFiles((current) => [result.file, ...(current ?? [])]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "We couldn't upload that file.");
+    } finally {
+      setBusy(false);
+      if (input.current) input.current.value = "";
+    }
+  }
+
+  return (
+    <section className="card advise-data-card">
+      <div className="row-between" style={{ alignItems: "flex-start" }}>
+        <div>
+          <p className="advise-label">Company files</p>
+          <h2 className="section-title" style={{ marginTop: 3 }}>Give the advisor evidence</h2>
+          <p className="small muted">Price lists, customer lists, plans, receipts, CSV exports.</p>
+        </div>
+        <span className="badge badge-todo">{files ? files.length : "…"}/20</span>
+      </div>
+
+      <input
+        ref={input}
+        type="file"
+        hidden
+        accept=".txt,.csv,.json,.md,.pdf,.png,.jpg,.jpeg,.webp,.doc,.docx,.xls,.xlsx"
+        onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void upload(file);
+        }}
+      />
+      <Button size="sm" onClick={() => input.current?.click()} loading={busy}>
+        Upload a file
+      </Button>
+      <p className="tiny muted">Text, CSV and JSON are read by the study. PDFs and images are stored but not parsed yet.</p>
+
+      {files === null ? <Skeleton lines={2} /> : null}
+      {files && files.length === 0 ? <p className="small muted">No files yet.</p> : null}
+      {files && files.length > 0 ? (
+        <div className="advise-file-list">
+          {files.map((file) => (
+            <div className="advise-file" key={file.id}>
+              <span style={{ minWidth: 0 }}>
+                <span className="advise-file-name">{file.name}</span>
+                <span className="tiny muted">{Math.ceil(file.size / 1024)} KB · {file.mime || "file"}</span>
+              </span>
+              <a className="tiny" href={`/api/files/${file.id}/download`}>Download</a>
+              <button
+                className="link-button"
+                onClick={async () => {
+                  try {
+                    await api.deleteFile(file.id);
+                    setFiles((current) => (current ?? []).filter((item) => item.id !== file.id));
+                  } catch {
+                    setError("We couldn't remove that file.");
+                  }
+                }}
+              >
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {error ? <p className="form-error">{error}</p> : null}
+    </section>
+  );
+}
+
+function FinancialCard({ currency }: { currency: string }) {
+  const { push } = useToast();
+  const [model, setModel] = useState<FinancialModel | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [form, setForm] = useState({
+    period: "This month",
+    revenue: "",
+    cogs: "",
+    opex: "",
+    cash: "",
+    receivables: "",
+    payables: "",
+    source: "",
+    audited: false,
+  });
+
+  useEffect(() => {
+    api
+      .financials()
+      .then((result) => setModel(result.model))
+      .catch(() => setModel(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  function update(key: keyof typeof form, value: string | boolean) {
+    setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  async function save(event: React.FormEvent) {
+    event.preventDefault();
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.saveFinancials({
+        period: form.period,
+        revenue: Number(form.revenue) || 0,
+        cogs: Number(form.cogs) || 0,
+        opex: Number(form.opex) || 0,
+        cash: Number(form.cash) || 0,
+        receivables: Number(form.receivables) || 0,
+        payables: Number(form.payables) || 0,
+        source: form.source,
+        audited: form.audited,
+      });
+      setModel(result.model);
+      setOpen(false);
+      push("Financial model updated.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "We couldn't save those numbers.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const format = (value: number) => `${currency.split(" ")[0]} ${Math.round(value).toLocaleString()}`;
+
+  return (
+    <section className="card advise-data-card">
+      <div className="row-between" style={{ alignItems: "flex-start" }}>
+        <div>
+          <p className="advise-label">Financial model</p>
+          <h2 className="section-title" style={{ marginTop: 3 }}>Numbers the study can use</h2>
+          <p className="small muted">Revenue, margin, burn and runway. Mark audited accounts when you have them.</p>
+        </div>
+        {model ? <span className={`badge ${model.quality === "Audited" ? "badge-done" : "badge-working"}`}>{model.quality}</span> : null}
+      </div>
+
+      {loading ? <Skeleton lines={3} /> : null}
+      {!loading && !model ? (
+        <>
+          <p className="small muted">No financials yet. Add one month and the deep study gets sharper.</p>
+          <Button size="sm" onClick={() => setOpen(true)}>Add numbers</Button>
+        </>
+      ) : null}
+
+      {model ? (
+        <>
+          <div className="advise-finance-grid">
+            <Metric label="Revenue" value={format(model.revenue)} />
+            <Metric label="Gross margin" value={`${Math.round(model.gross_margin * 100)}%`} />
+            <Metric label="Net profit" value={format(model.net_profit)} tone={model.net_profit < 0 ? "bad" : "good"} />
+            <Metric label="Cash" value={format(model.cash)} />
+            <Metric label="Runway" value={model.runway_months > 0 ? `${model.runway_months.toFixed(1)} months` : "Profitable"} />
+            <Metric label="Break-even" value={format(model.break_even_sales)} />
+          </div>
+          <div className="row-between">
+            <span className="tiny muted">{model.period} · {model.source || "management numbers"}</span>
+            <Button size="sm" onClick={() => setOpen(true)}>Update</Button>
+          </div>
+        </>
+      ) : null}
+
+      <Modal
+        open={open}
+        title={model ? "Update the financial model" : "Add a financial snapshot"}
+        onClose={() => setOpen(false)}
+        footer={
+          <>
+            <Button onClick={() => setOpen(false)} disabled={busy}>Cancel</Button>
+            <Button variant="primary" onClick={save} loading={busy}>Save model</Button>
+          </>
+        }
+      >
+        <p className="small muted mb-16">
+          One month is enough. Mark “audited” only if these numbers come from audited statements.
+        </p>
+        <div className="form-grid">
+          <Field label="Period" htmlFor="fin-period">
+            <Input id="fin-period" value={form.period} onChange={(event) => update("period", event.target.value)} />
+          </Field>
+          <Field label="Revenue" htmlFor="fin-revenue">
+            <Input id="fin-revenue" type="number" min="0" value={form.revenue} onChange={(event) => update("revenue", event.target.value)} />
+          </Field>
+          <Field label="Cost of sales" htmlFor="fin-cogs">
+            <Input id="fin-cogs" type="number" min="0" value={form.cogs} onChange={(event) => update("cogs", event.target.value)} />
+          </Field>
+          <Field label="Operating costs" htmlFor="fin-opex">
+            <Input id="fin-opex" type="number" min="0" value={form.opex} onChange={(event) => update("opex", event.target.value)} />
+          </Field>
+          <Field label="Cash" htmlFor="fin-cash">
+            <Input id="fin-cash" type="number" min="0" value={form.cash} onChange={(event) => update("cash", event.target.value)} />
+          </Field>
+          <Field label="Receivables" htmlFor="fin-receivables">
+            <Input id="fin-receivables" type="number" min="0" value={form.receivables} onChange={(event) => update("receivables", event.target.value)} />
+          </Field>
+          <Field label="Payables" htmlFor="fin-payables">
+            <Input id="fin-payables" type="number" min="0" value={form.payables} onChange={(event) => update("payables", event.target.value)} />
+          </Field>
+        </div>
+        <Field label="Source" hint="e.g. management accounts, accountant, audited statements." htmlFor="fin-source">
+          <Input id="fin-source" value={form.source} onChange={(event) => update("source", event.target.value)} />
+        </Field>
+        <label className="checkbox-row">
+          <input type="checkbox" checked={form.audited} onChange={(event) => update("audited", event.target.checked)} />
+          <span>These numbers are from audited statements</span>
+        </label>
+        {error ? <p className="form-error">{error}</p> : null}
+      </Modal>
+    </section>
+  );
+}
+
+function Metric({ label, value, tone }: { label: string; value: string; tone?: "good" | "bad" }) {
+  return (
+    <div className="advise-metric">
+      <span className="tiny muted">{label}</span>
+      <strong className={tone === "bad" ? "text-danger" : tone === "good" ? "text-ok" : ""}>{value}</strong>
+    </div>
+  );
+}
+
 function SectionCard({
   section,
   agents,
@@ -602,6 +870,101 @@ function SectionCard({
         })}
       </div>
     </section>
+  );
+}
+
+function ShareModal({
+  kind,
+  company,
+  report,
+  advice,
+  onClose,
+}: {
+  kind: "email" | "whatsapp" | null;
+  company: Company;
+  report: AdviceReport;
+  advice: CompanyAdvice | null;
+  onClose: () => void;
+}) {
+  const { push } = useToast();
+  const [to, setTo] = useState("");
+  const [subject, setSubject] = useState(`Advice for ${company.name}`);
+  const [body, setBody] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!kind) return;
+    const lines = [
+      `${company.name} — ${report.score}% foundation score`,
+      report.stage_label,
+      "",
+      advice?.analysis?.headline ?? "Next 7 days:",
+      ...(advice?.analysis?.next_7_days ?? report.next).map((item, index) => `${index + 1}. ${item}`),
+      "",
+      "General guidance, not legal, tax or investment advice.",
+    ];
+    setBody(lines.join("\n"));
+    setSubject(`Advice for ${company.name}`);
+    setError(null);
+  }, [kind, company.name, report, advice]);
+
+  async function send() {
+    setBusy(true);
+    setError(null);
+    try {
+      if (kind === "email") {
+        await api.sendEmail({ to, subject, body });
+        push("Report emailed.");
+      } else {
+        await api.sendWhatsApp({ to, message: body });
+        push("WhatsApp message sent.");
+      }
+      onClose();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "We couldn't send that message.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={kind !== null}
+      title={kind === "email" ? "Email this report" : "Send on WhatsApp"}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="primary" onClick={send} loading={busy} disabled={to.trim() === "" || body.trim() === ""}>
+            Send
+          </Button>
+        </>
+      }
+    >
+      {kind === "whatsapp" ? (
+        <p className="small muted mb-16">
+          Connect WhatsApp in Settings → Integrations. WhatsApp only allows free-form text inside the 24-hour customer window.
+        </p>
+      ) : null}
+      <Field label={kind === "email" ? "Recipient email" : "Recipient number"} htmlFor="share-to">
+        <Input
+          id="share-to"
+          value={to}
+          placeholder={kind === "email" ? "client@example.com" : "2348012345678"}
+          onChange={(event) => setTo(event.target.value)}
+        />
+      </Field>
+      {kind === "email" ? (
+        <Field label="Subject" htmlFor="share-subject">
+          <Input id="share-subject" value={subject} onChange={(event) => setSubject(event.target.value)} />
+        </Field>
+      ) : null}
+      <Field label="Message" htmlFor="share-body">
+        <Textarea id="share-body" rows={10} value={body} onChange={(event) => setBody(event.target.value)} />
+      </Field>
+      {error ? <p className="form-error">{error}</p> : null}
+    </Modal>
   );
 }
 

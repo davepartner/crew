@@ -11,6 +11,9 @@ export type Company = {
   monthly_budget_usd: number;
   spend_usd: number;
   country: string;
+  ticker: string;
+  parent_company_id: string;
+  is_product: boolean;
   role: "owner" | "editor" | "viewer";
   created_at: string;
   agent_count: number;
@@ -93,6 +96,9 @@ export type Member = {
   name: string;
   email: string;
   country: string;
+  ticker: string;
+  parent_company_id: string;
+  is_product: boolean;
   role: "owner" | "editor" | "viewer";
   is_owner: boolean;
 };
@@ -158,6 +164,52 @@ export type CompanyAdvice = {
 };
 
 export type ChatSource = { title: string; url: string };
+
+export type CompanyFile = {
+  id: string;
+  name: string;
+  mime: string;
+  size: number;
+  created_at: string;
+};
+
+export type FinancialSnapshot = {
+  id: string;
+  period: string;
+  revenue: number;
+  cogs: number;
+  opex: number;
+  cash: number;
+  receivables: number;
+  payables: number;
+  source: string;
+  audited: boolean;
+  created_at: string;
+};
+
+export type FinancialModel = {
+  period: string;
+  revenue: number;
+  cogs: number;
+  gross_profit: number;
+  gross_margin: number;
+  opex: number;
+  net_profit: number;
+  cash: number;
+  receivables: number;
+  payables: number;
+  runway_months: number;
+  break_even_sales: number;
+  annual_revenue: number;
+  quality: string;
+  source: string;
+};
+
+export type Integration = {
+  kind: string;
+  configured: boolean;
+  details: Record<string, string>;
+};
 
 export type AdsBrief = {
   title: string;
@@ -496,6 +548,65 @@ export const api = {
     }),
   deleteCompany: (id: string) =>
     request<{ ok: boolean }>(`/api/companies/${id}`, { method: "DELETE" }),
+
+  files: () => request<{ ok: boolean; files: CompanyFile[] }>("/api/files"),
+  uploadFile: async (file: File) => {
+    const headers = new Headers();
+    headers.set("Accept", "application/json");
+    if (activeCompany) headers.set("X-Crew-Company", activeCompany);
+    const csrf = readCookie("crew_csrf");
+    if (!csrf) await fetch("/api/csrf", { credentials: "same-origin" });
+    headers.set("X-CSRF-Token", readCookie("crew_csrf"));
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch("/api/files", {
+      method: "POST",
+      body: form,
+      headers,
+      credentials: "same-origin",
+    });
+    const payload = (await response.json().catch(() => ({}))) as { file?: CompanyFile; error?: string };
+    if (!response.ok) throw new ApiError(payload.error || "We couldn't upload that file.", response.status);
+    return payload as { file: CompanyFile };
+  },
+  deleteFile: (id: string) => request<{ ok: boolean }>(`/api/files/${id}`, { method: "DELETE" }),
+  financials: () =>
+    request<{ ok: boolean; snapshots: FinancialSnapshot[]; model: FinancialModel | null }>("/api/financials"),
+  saveFinancials: (input: Omit<FinancialSnapshot, "id" | "created_at">) =>
+    request<{ ok: boolean; snapshot: FinancialSnapshot; model: FinancialModel }>("/api/financials", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteFinancials: (id: string) =>
+    request<{ ok: boolean }>(`/api/financials/${id}`, { method: "DELETE" }),
+  integrations: () =>
+    request<{ ok: boolean; integrations: Integration[]; email: { available: boolean; from: string } }>(
+      "/api/integrations",
+    ),
+  saveIntegration: (kind: string, config: Record<string, string>) =>
+    request<{ ok: boolean; integration: Integration }>(`/api/integrations/${kind}`, {
+      method: "PUT",
+      body: JSON.stringify(config),
+    }),
+  deleteIntegration: (kind: string) =>
+    request<{ ok: boolean }>(`/api/integrations/${kind}`, { method: "DELETE" }),
+  testIntegration: (kind: string) =>
+    request<{ ok: boolean; detail: Record<string, unknown> }>(`/api/integrations/${kind}/test`, { method: "POST" }),
+  integrationOverview: (kind: string) =>
+    request<{ ok: boolean; overview: Record<string, unknown> }>(`/api/integrations/${kind}/overview`),
+  sendEmail: (input: { to: string; subject: string; body: string }) =>
+    request<{ ok: boolean }>("/api/send/email", { method: "POST", body: JSON.stringify(input) }),
+  sendWhatsApp: (input: { to: string; message: string }) =>
+    request<{ ok: boolean }>("/api/send/whatsapp", { method: "POST", body: JSON.stringify(input) }),
+
+  products: () => request<{ ok: boolean; products: Company[] }>("/api/products"),
+  createProduct: (input: { name: string; description: string; audience: string; website: string }) =>
+    request<{ ok: boolean; product: Company }>("/api/products", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  deleteProduct: (id: string) =>
+    request<{ ok: boolean }>(`/api/products/${id}`, { method: "DELETE" }),
 
   members: () =>
     request<{ ok: boolean; members: Member[]; invites: Invite[]; role: string }>("/api/members"),

@@ -63,7 +63,18 @@ func (s *Store) AddMember(ctx context.Context, companyID, userID, role string) e
 		VALUES (?, ?, ?, ?)
 		ON CONFLICT(company_id, user_id) DO UPDATE SET role = excluded.role`,
 		companyID, userID, role, Now())
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Products are separate workspaces; keep the same team on them.
+	_, _ = s.db.ExecContext(ctx, `
+		INSERT INTO company_members (company_id, user_id, role, created_at)
+		SELECT id, ?, ?, ? FROM companies WHERE parent_company_id = ?
+		ON CONFLICT(company_id, user_id) DO UPDATE SET role = excluded.role`,
+		userID, role, Now(), companyID)
+
+	return nil
 }
 
 func (s *Store) RemoveMember(ctx context.Context, companyID, userID string) error {
@@ -75,6 +86,9 @@ func (s *Store) RemoveMember(ctx context.Context, companyID, userID string) erro
 	if n, _ := res.RowsAffected(); n == 0 {
 		return ErrNotFound
 	}
+	_, _ = s.db.ExecContext(ctx, `
+		DELETE FROM company_members WHERE user_id = ?
+		  AND company_id IN (SELECT id FROM companies WHERE parent_company_id = ?)`, userID, companyID)
 	return nil
 }
 

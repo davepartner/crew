@@ -44,7 +44,7 @@ func TestStudyCompanyEndToEnd(t *testing.T) {
 	})
 
 	cipher, _ := secret.New(bytes.Repeat([]byte{9}, 32))
-	server := New(config.Config{TaskLease: time.Hour, SessionCacheTTL: time.Minute}, st,
+	server := New(config.Config{TaskLease: time.Hour, SessionCacheTTL: time.Minute, Env: "test"}, st,
 		payauth.NewClient("http://127.0.0.1:1", time.Second), cipher)
 
 	previous := marketingModelFor

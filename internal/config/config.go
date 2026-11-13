@@ -28,6 +28,10 @@ type Config struct {
 	WebDir             string
 	Env                string
 	ServiceName        string
+	SMTPAddr           string
+	SMTPFrom           string
+	SMTPUser           string
+	SMTPPass           string
 }
 
 func Load() Config {
@@ -50,6 +54,10 @@ func Load() Config {
 		WebDir:             env("CREW_WEB_DIR", ""),
 		Env:                env("CREW_ENV", "development"),
 		ServiceName:        env("CREW_NAME", "Crew"),
+		SMTPAddr:           env("CREW_SMTP_ADDR", "127.0.0.1:25"),
+		SMTPFrom:           env("CREW_SMTP_FROM", "Crew <noreply@paytrackify.com>"),
+		SMTPUser:           env("CREW_SMTP_USER", ""),
+		SMTPPass:           env("CREW_SMTP_PASS", ""),
 	}
 
 	if cfg.SecureCookies || cfg.Env == "production" {

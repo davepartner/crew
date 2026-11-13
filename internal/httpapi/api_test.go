@@ -1181,3 +1181,57 @@ func TestAdviceReportAndNoModelStudy(t *testing.T) {
 		t.Fatalf("study without model: %d %s", status, raw)
 	}
 }
+
+func TestProductsAndFinancials(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var product struct {
+		Product struct {
+			ID        string `json:"id"`
+			Name      string `json:"name"`
+			IsProduct bool   `json:"is_product"`
+		} `json:"product"`
+	}
+	status, raw := b.do(t, http.MethodPost, "/api/products", map[string]any{
+		"name": "Solar Pro", "description": "Solar for clinics", "audience": "clinics",
+	}, &product)
+	if status != 201 || product.Product.Name != "Solar Pro" || !product.Product.IsProduct {
+		t.Fatalf("product: %d %s", status, raw)
+	}
+
+	var list struct {
+		Products []map[string]any `json:"products"`
+	}
+	status, raw = b.do(t, http.MethodGet, "/api/products", nil, &list)
+	if status != 200 || len(list.Products) != 1 {
+		t.Fatalf("products: %d %s", status, raw)
+	}
+
+	var finance struct {
+		Model struct {
+			GrossProfit    float64 `json:"gross_profit"`
+			GrossMargin    float64 `json:"gross_margin"`
+			NetProfit      float64 `json:"net_profit"`
+			BreakEvenSales float64 `json:"break_even_sales"`
+			Quality        string  `json:"quality"`
+		} `json:"model"`
+	}
+	status, raw = b.do(t, http.MethodPost, "/api/financials", map[string]any{
+		"period": "October", "revenue": 1000000, "cogs": 400000, "opex": 300000,
+		"cash": 600000, "source": "Management accounts", "audited": false,
+	}, &finance)
+	if status != 201 {
+		t.Fatalf("financials: %d %s", status, raw)
+	}
+	if finance.Model.GrossProfit != 600000 || finance.Model.NetProfit != 300000 {
+		t.Fatalf("model: %+v", finance.Model)
+	}
+	if finance.Model.GrossMargin < 0.59 || finance.Model.GrossMargin > 0.61 {
+		t.Fatalf("margin: %f", finance.Model.GrossMargin)
+	}
+	if finance.Model.BreakEvenSales <= 0 || finance.Model.Quality != "Management accounts" {
+		t.Fatalf("model: %+v", finance.Model)
+	}
+}

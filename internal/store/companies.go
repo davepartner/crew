@@ -17,6 +17,9 @@ type Company struct {
 	Audience         string    `json:"audience"`
 	Tone             string    `json:"tone"`
 	Country          string    `json:"country"`
+	Ticker           string    `json:"ticker"`
+	ParentID         string    `json:"parent_company_id"`
+	IsProduct        bool      `json:"is_product"`
 	MonthlyTaskLimit int       `json:"monthly_task_limit"`
 	MonthlyBudgetUSD float64   `json:"monthly_budget_usd"`
 	SpendUSD         float64   `json:"spend_usd"`
@@ -35,6 +38,9 @@ type CompanyInput struct {
 	Audience         string
 	Tone             string
 	Country          string
+	Ticker           string
+	ParentID         string
+	IsProduct        bool
 	MonthlyTaskLimit int
 	MonthlyBudgetUSD float64
 }
@@ -50,16 +56,20 @@ func (s *Store) CreateCompany(ctx context.Context, userID string, input CompanyI
 		Audience:         input.Audience,
 		Tone:             input.Tone,
 		Country:          input.Country,
+		Ticker:           input.Ticker,
+		ParentID:         input.ParentID,
+		IsProduct:        input.IsProduct,
 		MonthlyTaskLimit: input.MonthlyTaskLimit,
 		CreatedAt:        time.Now().UTC(),
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO companies (id, user_id, name, business_key, website, support_email, description, audience, tone, country, monthly_task_limit, monthly_budget_usd, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO companies (id, user_id, name, business_key, website, support_email, description, audience, tone, country, ticker, parent_company_id, is_product, monthly_task_limit, monthly_budget_usd, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		company.ID, userID, company.Name, company.BusinessKey, company.Website,
-		company.SupportEmail, company.Description, company.Audience, company.Tone, company.Country,
-		company.MonthlyTaskLimit, company.MonthlyBudgetUSD, company.CreatedAt.Format(TimeFormat))
+		company.SupportEmail, company.Description, company.Audience, company.Tone, company.Country, company.Ticker,
+		company.ParentID, boolInt(company.IsProduct), company.MonthlyTaskLimit, company.MonthlyBudgetUSD,
+		company.CreatedAt.Format(TimeFormat))
 	if err != nil {
 		return Company{}, err
 	}
@@ -70,7 +80,7 @@ func (s *Store) CreateCompany(ctx context.Context, userID string, input CompanyI
 func (s *Store) ListCompanies(ctx context.Context, userID string) ([]Company, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT c.id, c.name, c.business_key, c.website, c.support_email, c.description,
-		       c.audience, c.tone, c.country, c.monthly_task_limit, c.monthly_budget_usd,
+		       c.audience, c.tone, c.country, c.ticker, c.parent_company_id, c.is_product, c.monthly_task_limit, c.monthly_budget_usd,
 		       (SELECT COALESCE(SUM(u.cost_usd), 0) FROM model_usage u
 		        WHERE u.company_id = c.id
 		          AND strftime('%Y-%m', u.created_at) = strftime('%Y-%m', 'now')),
@@ -102,7 +112,7 @@ func (s *Store) ListCompanies(ctx context.Context, userID string) ([]Company, er
 func (s *Store) GetCompany(ctx context.Context, userID, id string) (Company, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT c.id, c.name, c.business_key, c.website, c.support_email, c.description,
-		       c.audience, c.tone, c.country, c.monthly_task_limit, c.monthly_budget_usd,
+		       c.audience, c.tone, c.country, c.ticker, c.parent_company_id, c.is_product, c.monthly_task_limit, c.monthly_budget_usd,
 		       (SELECT COALESCE(SUM(u.cost_usd), 0) FROM model_usage u
 		        WHERE u.company_id = c.id
 		          AND strftime('%Y-%m', u.created_at) = strftime('%Y-%m', 'now')),
@@ -125,10 +135,11 @@ func (s *Store) GetCompany(ctx context.Context, userID, id string) (Company, err
 func (s *Store) UpdateCompany(ctx context.Context, userID, id string, input CompanyInput) (Company, error) {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE companies
-		SET name = ?, business_key = ?, website = ?, support_email = ?, description = ?, audience = ?, tone = ?, country = ?, monthly_task_limit = ?, monthly_budget_usd = ?
+		SET name = ?, business_key = ?, website = ?, support_email = ?, description = ?, audience = ?, tone = ?, country = ?, ticker = ?, parent_company_id = ?, is_product = ?, monthly_task_limit = ?, monthly_budget_usd = ?
 		WHERE user_id = ? AND id = ?`,
 		input.Name, input.BusinessKey, input.Website, input.SupportEmail,
-		input.Description, input.Audience, input.Tone, input.Country, input.MonthlyTaskLimit, input.MonthlyBudgetUSD, userID, id)
+		input.Description, input.Audience, input.Tone, input.Country, input.Ticker, input.ParentID, boolInt(input.IsProduct),
+		input.MonthlyTaskLimit, input.MonthlyBudgetUSD, userID, id)
 	if err != nil {
 		return Company{}, err
 	}
@@ -178,8 +189,10 @@ func (s *Store) DeleteCompany(ctx context.Context, userID, id string) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM ad_campaigns WHERE company_id = ?`, id); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM company_advice WHERE company_id = ?`, id); err != nil {
-			return err
+		for _, table := range []string{"company_files", "financial_snapshots", "company_integrations", "company_advice"} {
+			if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE company_id = ?", id); err != nil {
+				return err
+			}
 		}
 		_, err = tx.ExecContext(ctx, `DELETE FROM companies WHERE id = ?`, id)
 		return err
@@ -192,7 +205,7 @@ func scanCompany(row scanner) (Company, error) {
 
 	err := row.Scan(&company.ID, &company.Name, &company.BusinessKey, &company.Website,
 		&company.SupportEmail, &company.Description, &company.Audience, &company.Tone, &company.Country,
-		&company.MonthlyTaskLimit, &company.MonthlyBudgetUSD, &company.SpendUSD, &created,
+		&company.Ticker, &company.ParentID, &company.IsProduct, &company.MonthlyTaskLimit, &company.MonthlyBudgetUSD, &company.SpendUSD, &created,
 		&company.Role, &company.AgentCount, &company.TaskCount)
 	if err != nil {
 		return Company{}, err
@@ -203,3 +216,81 @@ func scanCompany(row scanner) (Company, error) {
 }
 
 var ErrNoCompany = errors.New("no company")
+
+func (s *Store) CreateProduct(ctx context.Context, userID, parentID, name, description, audience, website string) (Company, error) {
+	parent, err := s.GetCompany(ctx, userID, parentID)
+	if err != nil {
+		return Company{}, err
+	}
+	if parent.IsProduct {
+		return Company{}, ErrNotFound
+	}
+
+	var ownerID string
+	if err := s.db.QueryRowContext(ctx, `SELECT user_id FROM companies WHERE id = ?`, parentID).Scan(&ownerID); err != nil {
+		return Company{}, err
+	}
+
+	product, err := s.CreateCompany(ctx, ownerID, CompanyInput{
+		Name:        name,
+		BusinessKey: parent.BusinessKey,
+		Website:     website,
+		Description: description,
+		Audience:    audience,
+		Tone:        parent.Tone,
+		Country:     parent.Country,
+		ParentID:    parent.ID,
+		IsProduct:   true,
+	})
+	if err != nil {
+		return Company{}, err
+	}
+
+	members, _ := s.ListMembers(ctx, parent.ID)
+	for _, member := range members {
+		if member.IsOwner {
+			continue
+		}
+		_, _ = s.db.ExecContext(ctx, `
+			INSERT INTO company_members (company_id, user_id, role, created_at)
+			VALUES (?, ?, ?, ?)
+			ON CONFLICT(company_id, user_id) DO NOTHING`,
+			product.ID, member.UserID, member.Role, Now())
+	}
+
+	return product, nil
+}
+
+func (s *Store) ListProducts(ctx context.Context, companyID string) ([]Company, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT c.id, c.name, c.business_key, c.website, c.support_email, c.description,
+		       c.audience, c.tone, c.country, c.ticker, c.parent_company_id, c.is_product,
+		       c.monthly_task_limit, c.monthly_budget_usd,
+		       (SELECT COALESCE(SUM(u.cost_usd), 0) FROM model_usage u
+		        WHERE u.company_id = c.id
+		          AND strftime('%Y-%m', u.created_at) = strftime('%Y-%m', 'now')),
+		       c.created_at, 'owner',
+		       (SELECT COUNT(*) FROM agents a WHERE a.company_id = c.id),
+		       (SELECT COUNT(*) FROM tasks t WHERE t.company_id = c.id)
+		FROM companies c WHERE c.parent_company_id = ? ORDER BY c.created_at ASC`, companyID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	products := []Company{}
+	for rows.Next() {
+		product, err := scanCompany(rows)
+		if err != nil {
+			return nil, err
+		}
+		products = append(products, product)
+	}
+	return products, rows.Err()
+}
+
+func (s *Store) CountProducts(ctx context.Context, companyID string) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM companies WHERE parent_company_id = ?`, companyID).Scan(&count)
+	return count, err
+}

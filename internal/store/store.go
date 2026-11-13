@@ -150,6 +150,40 @@ func (s *Store) migrate(ctx context.Context) error {
 			completed_at TEXT
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_goals_company ON goals(company_id, completed_at)`,
+		`CREATE TABLE IF NOT EXISTS company_files (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			company_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			mime TEXT NOT NULL DEFAULT '',
+			size INTEGER NOT NULL DEFAULT 0,
+			path TEXT NOT NULL,
+			text TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_company_files ON company_files(company_id, created_at)`,
+		`CREATE TABLE IF NOT EXISTS financial_snapshots (
+			id TEXT PRIMARY KEY,
+			company_id TEXT NOT NULL,
+			period TEXT NOT NULL DEFAULT '',
+			revenue REAL NOT NULL DEFAULT 0,
+			cogs REAL NOT NULL DEFAULT 0,
+			opex REAL NOT NULL DEFAULT 0,
+			cash REAL NOT NULL DEFAULT 0,
+			receivables REAL NOT NULL DEFAULT 0,
+			payables REAL NOT NULL DEFAULT 0,
+			source TEXT NOT NULL DEFAULT '',
+			audited INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_financials_company ON financial_snapshots(company_id, created_at)`,
+		`CREATE TABLE IF NOT EXISTS company_integrations (
+			company_id TEXT NOT NULL,
+			kind TEXT NOT NULL,
+			config_cipher TEXT NOT NULL,
+			created_at TEXT NOT NULL,
+			PRIMARY KEY (company_id, kind)
+		)`,
 		`CREATE TABLE IF NOT EXISTS company_advice (
 			company_id TEXT PRIMARY KEY,
 			analysis TEXT NOT NULL,
@@ -240,6 +274,9 @@ func (s *Store) migrate(ctx context.Context) error {
 		{"companies", "monthly_task_limit", "INTEGER NOT NULL DEFAULT 0"},
 		{"companies", "monthly_budget_usd", "REAL NOT NULL DEFAULT 0"},
 		{"companies", "country", "TEXT NOT NULL DEFAULT 'Nigeria'"},
+		{"companies", "ticker", "TEXT NOT NULL DEFAULT ''"},
+		{"companies", "parent_company_id", "TEXT NOT NULL DEFAULT ''"},
+		{"companies", "is_product", "INTEGER NOT NULL DEFAULT 0"},
 	}
 
 	for _, column := range columns {

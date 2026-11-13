@@ -91,6 +91,7 @@ func (s *Store) DeleteUserData(ctx context.Context, id string) error {
 			`DELETE FROM company_invites WHERE email = (SELECT email FROM users WHERE id = ?)`,
 			`DELETE FROM notifications WHERE user_id = ?`,
 			`DELETE FROM ad_campaigns WHERE user_id = ?`,
+			`DELETE FROM company_files WHERE user_id = ?`,
 			`DELETE FROM tasks WHERE user_id = ?`,
 			`DELETE FROM agents WHERE user_id = ?`,
 			`DELETE FROM provider_keys WHERE user_id = ?`,

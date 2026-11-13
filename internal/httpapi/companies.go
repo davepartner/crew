@@ -25,6 +25,7 @@ type companyInput struct {
 	Audience         string `json:"audience"`
 	Tone             string `json:"tone"`
 	Country          string `json:"country"`
+	Ticker           string `json:"ticker"`
 	MonthlyTaskLimit *int   `json:"monthlyTaskLimit"`
 	CreateTeam       *bool  `json:"createTeam"`
 }
@@ -103,6 +104,7 @@ func (s *Server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 		Audience:         trim(body.Audience, 200),
 		Tone:             trim(body.Tone, 40),
 		Country:          country,
+		Ticker:           strings.ToUpper(trim(body.Ticker, 20)),
 		MonthlyTaskLimit: limit,
 	})
 	if err != nil {
@@ -234,6 +236,7 @@ func (s *Server) handleUpdateCompany(w http.ResponseWriter, r *http.Request) {
 		Audience:         trim(body.Audience, 200),
 		Tone:             trim(body.Tone, 40),
 		Country:          country,
+		Ticker:           strings.ToUpper(trim(body.Ticker, 20)),
 		MonthlyTaskLimit: limit,
 	})
 	if err != nil {
@@ -246,6 +249,11 @@ func (s *Server) handleUpdateCompany(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteCompany(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
+
+	if count, _ := s.store.CountProducts(r.Context(), r.PathValue("id")); count > 0 {
+		writeError(w, http.StatusConflict, "Delete the products under this company first.")
+		return
+	}
 
 	if err := s.store.DeleteCompany(r.Context(), id.UserID, r.PathValue("id")); err != nil {
 		writeError(w, http.StatusNotFound, "That company doesn't exist.")

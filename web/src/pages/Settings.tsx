@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, type Company, type Invite, type Member, type Provider, type Session, type User } from "../api";
+import { api, ApiError, setCompany as rememberCompany, type Company, type Invite, type Member, type Provider, type Session, type User } from "../api";
 import { ModelsPanel } from "../components/ModelsPanel";
+import { IntegrationsPanel } from "../components/IntegrationsPanel";
 import { money, relativeTime, shortDate } from "../time";
 import { Button, Field, Input, Modal, Select, Tabs, Textarea, useToast } from "../ui";
 
@@ -10,6 +11,7 @@ const tabs = [
   { id: "company", label: "Company" },
   { id: "you", label: "You" },
   { id: "models", label: "AI models" },
+  { id: "integrations", label: "Integrations" },
   { id: "privacy", label: "Privacy & data" },
   { id: "danger", label: "Danger zone" },
 ];
@@ -45,6 +47,7 @@ export function Settings({
   const [audience, setAudience] = useState(company.audience);
   const [tone, setTone] = useState(company.tone || "Friendly");
   const [country, setCountry] = useState(company.country || "Nigeria");
+  const [ticker, setTicker] = useState(company.ticker || "");
   const [monthlyLimit, setMonthlyLimit] = useState(String(company.monthly_task_limit ?? 0));
   const [monthlyBudget, setMonthlyBudget] = useState(String(company.monthly_budget_usd ?? 0));
   const [members, setMembers] = useState<Member[]>([]);
@@ -52,6 +55,12 @@ export function Settings({
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState("editor");
   const [teamBusy, setTeamBusy] = useState(false);
+  const [products, setProducts] = useState<Company[]>([]);
+  const [productName, setProductName] = useState("");
+  const [productDescription, setProductDescription] = useState("");
+  const [productAudience, setProductAudience] = useState("");
+  const [productWebsite, setProductWebsite] = useState("");
+  const [productBusy, setProductBusy] = useState(false);
 
   useEffect(() => {
     setCompanyName(company.name);
@@ -61,9 +70,17 @@ export function Settings({
     setAudience(company.audience);
     setTone(company.tone || "Friendly");
     setCountry(company.country || "Nigeria");
+    setTicker(company.ticker || "");
     setMonthlyLimit(String(company.monthly_task_limit ?? 0));
     setMonthlyBudget(String(company.monthly_budget_usd ?? 0));
   }, [company]);
+
+  useEffect(() => {
+    api
+      .products()
+      .then((result) => setProducts(result.products))
+      .catch(() => setProducts([]));
+  }, [company.id]);
 
   useEffect(() => {
     api
@@ -108,6 +125,7 @@ export function Settings({
         audience: audience.trim(),
         tone,
         country,
+        ticker,
         monthlyTaskLimit: Math.max(0, Number(monthlyLimit) || 0),
         monthlyBudgetUsd: Math.max(0, Number(monthlyBudget) || 0),
       });
@@ -258,6 +276,15 @@ export function Settings({
               </Select>
             </Field>
 
+            <Field label="Public ticker" hint="Optional. Used for live market data in the advisor." htmlFor="settings-company-ticker">
+              <Input
+                id="settings-company-ticker"
+                value={ticker}
+                placeholder="AAPL or DANGCEM.LG"
+                onChange={(event) => setTicker(event.target.value.toUpperCase())}
+              />
+            </Field>
+
             <Field label="Tone" htmlFor="settings-company-tone">
               <Select id="settings-company-tone" value={tone} onChange={(event) => setTone(event.target.value)}>
                 {tones.map((item) => (
@@ -302,6 +329,111 @@ export function Settings({
               Save company
             </Button>
           </form>
+
+          <hr className="divider" style={{ margin: "24px 0" }} />
+
+          <div className="row-between" style={{ alignItems: "flex-start" }}>
+            <div>
+              <h2 className="section-title" style={{ marginBottom: 4 }}>Products</h2>
+              <p className="small muted" style={{ margin: 0 }}>
+                Each product is its own workspace with helpers, tasks, routines, marketing, ads and advice.
+              </p>
+            </div>
+          </div>
+
+          {products.length > 0 ? (
+            <div className="list mt-16">
+              {products.map((product) => (
+                <div className="row" key={product.id} style={{ cursor: "default" }}>
+                  <span className="avatar" aria-hidden="true">
+                    {product.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="row-main">
+                    <span className="row-title">{product.name}</span>
+                    <span className="row-meta">
+                      {product.agent_count} helpers · {product.task_count} tasks
+                    </span>
+                  </span>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      rememberCompany(product.id);
+                      window.location.assign("/");
+                    }}
+                  >
+                    Open
+                  </Button>
+                  {company.role === "owner" ? (
+                    <Button
+                      size="sm"
+                      variant="quiet"
+                      onClick={async () => {
+                        if (!window.confirm(`Delete the product “${product.name}” and its work?`)) return;
+                        try {
+                          await api.deleteProduct(product.id);
+                          setProducts((current) => current.filter((item) => item.id !== product.id));
+                          push("Product deleted.");
+                        } catch (err) {
+                          push(err instanceof ApiError ? err.message : "We couldn't delete that product.", "error");
+                        }
+                      }}
+                    >
+                      Delete
+                    </Button>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="small muted mt-16">No products yet. This company is the first workspace.</p>
+          )}
+
+          {!company.is_product ? (
+            <form
+              className="mt-16"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (productName.trim() === "") return;
+                setProductBusy(true);
+                try {
+                  const result = await api.createProduct({
+                    name: productName.trim(),
+                    description: productDescription.trim(),
+                    audience: productAudience.trim(),
+                    website: productWebsite.trim(),
+                  });
+                  setProducts((current) => [...current, result.product]);
+                  setProductName("");
+                  setProductDescription("");
+                  setProductAudience("");
+                  setProductWebsite("");
+                  push("Product created. Open it to build its team.");
+                } catch (err) {
+                  push(err instanceof ApiError ? err.message : "We couldn't create that product.", "error");
+                } finally {
+                  setProductBusy(false);
+                }
+              }}
+            >
+              <div className="form-grid">
+                <Field label="Product name" htmlFor="product-name">
+                  <Input id="product-name" value={productName} onChange={(event) => setProductName(event.target.value)} />
+                </Field>
+                <Field label="Website" htmlFor="product-website">
+                  <Input id="product-website" value={productWebsite} onChange={(event) => setProductWebsite(event.target.value)} />
+                </Field>
+                <Field label="Audience" htmlFor="product-audience">
+                  <Input id="product-audience" value={productAudience} onChange={(event) => setProductAudience(event.target.value)} />
+                </Field>
+              </div>
+              <Field label="What is it?" htmlFor="product-description">
+                <Textarea id="product-description" rows={2} value={productDescription} onChange={(event) => setProductDescription(event.target.value)} />
+              </Field>
+              <Button type="submit" loading={productBusy}>Add product</Button>
+            </form>
+          ) : (
+            <p className="small muted mt-16">This is a product workspace. Manage its parent company from the company switcher.</p>
+          )}
 
           <hr className="divider" style={{ margin: "24px 0" }} />
 
@@ -505,6 +637,12 @@ export function Settings({
       {tab === "models" ? (
         <section style={{ maxWidth: 900 }}>
           <ModelsPanel onConfigured={() => setProviders([])} />
+        </section>
+      ) : null}
+
+      {tab === "integrations" ? (
+        <section style={{ maxWidth: 900 }}>
+          <IntegrationsPanel />
         </section>
       ) : null}
 

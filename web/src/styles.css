@@ -1353,3 +1353,40 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .advisor-chat { right: 14px; bottom: 14px; }
   .advisor-panel { height: 68vh; }
 }
+
+.advise-data-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 16px; }
+.advise-data-card { display: flex; flex-direction: column; gap: 10px; }
+.advise-file-list { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.advise-file { display: flex; align-items: center; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.advise-file:first-child { border-top: none; }
+.advise-file-name { display: block; font-weight: 550; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.advise-finance-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.advise-metric { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 8px 9px; background: var(--surface-2); }
+.advise-metric strong { display: block; font-size: 14px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+.text-danger { color: var(--danger); }
+.text-ok { color: var(--ok); }
+.checkbox-row { display: flex; align-items: center; gap: 8px; font-size: 13px; margin: 10px 0; }
+.checkbox-row input { accent-color: var(--accent); }
+.badge-done { background: color-mix(in srgb, var(--ok) 14%, var(--surface)); color: var(--ok); border-color: color-mix(in srgb, var(--ok) 35%, var(--line)); }
+
+@media (max-width: 900px) {
+  .advise-data-grid { grid-template-columns: minmax(0, 1fr); }
+  .advise-finance-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+.integration-result {
+  max-height: 180px;
+  overflow: auto;
+  margin: 10px 0 0;
+  padding: 9px 10px;
+  border-radius: 7px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.advise-share-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.advise-share-row .tiny { margin-right: auto; }

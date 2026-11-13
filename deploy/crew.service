@@ -1,0 +1,17 @@
+[Unit]
+Description=Crew company runner
+After=network.target
+
+[Service]
+User=investorpath
+Group=investorpath
+WorkingDirectory=/home/investorpath/crew
+EnvironmentFile=/home/investorpath/crew/crew.env
+ExecStart=/home/investorpath/crew/crew
+Restart=always
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

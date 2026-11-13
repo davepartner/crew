@@ -4,6 +4,8 @@
 
 **Give your AI helpers work. See it get done.**
 
+**Live:** https://crew.paytrackify.com · [Deployment guide](docs/deploy.md)
+
 Crew is a small, calm control panel for running a company with AI helpers. Tell it what
 business you run, and it sets up a team, their first tasks, and the context they need. Give
 them work; nothing ships until you say it's good.
@@ -34,6 +36,10 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 | Sign in | Home |
 |---|---|
 | ![Sign in](docs/screenshots/login.png) | ![Home](docs/screenshots/home.png) |
+
+| Onboarding | Company dashboard |
+|---|---|
+| ![Onboarding](docs/screenshots/onboarding.png) | ![Company](docs/screenshots/company.png) |
 
 | Task | Mobile |
 |---|---|

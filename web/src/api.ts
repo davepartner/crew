@@ -1,0 +1,217 @@
+export type User = {
+  id: string;
+  email: string;
+  name: string;
+  created_at: string;
+};
+
+export type AgentStatus = "ready" | "working" | "offline" | "not_connected";
+
+export type Agent = {
+  id: string;
+  name: string;
+  role: string;
+  emoji: string;
+  instructions: string;
+  status: AgentStatus;
+  open_tasks: number;
+  working_tasks: number;
+  last_seen_at: string | null;
+  created_at: string;
+};
+
+export type Comment = {
+  id: string;
+  author_type: "you" | "helper" | "system";
+  author_name: string;
+  body: string;
+  created_at: string;
+};
+
+export type TaskStatus = "todo" | "working" | "review" | "done";
+
+export type Task = {
+  id: string;
+  title: string;
+  details: string;
+  status: TaskStatus;
+  agent_id: string | null;
+  agent: { id: string; name: string; emoji: string; role: string } | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+  comments?: Comment[];
+};
+
+export type ActivityItem = {
+  id: number;
+  kind: string;
+  message: string;
+  task_id?: string;
+  agent_id?: string;
+  created_at: string;
+};
+
+export type Session = {
+  id: string;
+  device: string;
+  ip_address: string;
+  last_used_at: string;
+  created_at: string;
+};
+
+export type Dashboard = {
+  ok: boolean;
+  greeting: string;
+  name: string;
+  counts: Record<TaskStatus, number>;
+  needsYou: Task[];
+  working: Task[];
+  upNext: Task[];
+  agents: Agent[];
+  activity: ActivityItem[];
+};
+
+export class ApiError extends Error {
+  status: number;
+  retryAfter: number;
+
+  constructor(message: string, status: number, retryAfter = 0) {
+    super(message);
+    this.status = status;
+    this.retryAfter = retryAfter;
+  }
+}
+
+function readCookie(name: string): string {
+  const prefix = `${name}=`;
+  const parts = document.cookie.split("; ");
+  for (const part of parts) {
+    if (part.startsWith(prefix)) return decodeURIComponent(part.slice(prefix.length));
+  }
+  return "";
+}
+
+async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = (init.method ?? "GET").toUpperCase();
+  const headers = new Headers(init.headers);
+
+  headers.set("Accept", "application/json");
+
+  if (init.body) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (method !== "GET" && method !== "HEAD") {
+    const csrf = readCookie("crew_csrf");
+    if (!csrf) {
+      await fetch("/api/csrf", { credentials: "same-origin" });
+    }
+    headers.set("X-CSRF-Token", readCookie("crew_csrf"));
+  }
+
+  const response = await fetch(path, {
+    ...init,
+    method,
+    headers,
+    credentials: "same-origin",
+  });
+
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : {};
+
+  if (!response.ok) {
+    throw new ApiError(
+      payload.error ?? "Something went wrong. Please try again.",
+      response.status,
+      payload.retry_after ?? 0,
+    );
+  }
+
+  return payload as T;
+}
+
+export const api = {
+  csrf: () => fetch("/api/csrf", { credentials: "same-origin" }),
+
+  me: () => request<{ ok: boolean; user: User }>("/api/me"),
+  updateMe: (name: string) =>
+    request<{ ok: boolean; user: User }>("/api/me", {
+      method: "PATCH",
+      body: JSON.stringify({ name }),
+    }),
+  deleteMe: () => request<{ ok: boolean }>("/api/me", { method: "DELETE" }),
+
+  requestCode: (email: string) =>
+    request<{ ok: boolean; requestId: string; resendAfter: number; message: string }>(
+      "/api/auth/request",
+      { method: "POST", body: JSON.stringify({ email }) },
+    ),
+  resendCode: (requestId: string) =>
+    request<{ ok: boolean; resendAfter: number }>("/api/auth/resend", {
+      method: "POST",
+      body: JSON.stringify({ requestId }),
+    }),
+  verifyCode: (requestId: string, code: string) =>
+    request<{ ok: boolean; user: User; isNew: boolean }>("/api/auth/verify", {
+      method: "POST",
+      body: JSON.stringify({ requestId, code }),
+    }),
+  logout: (reason: string) =>
+    request<{ ok: boolean }>("/api/auth/logout", {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+
+  sessions: () => request<{ ok: boolean; sessions: Session[] }>("/api/me/sessions"),
+  revokeSession: (id: string) =>
+    request<{ ok: boolean }>(`/api/me/sessions/${id}`, { method: "DELETE" }),
+
+  dashboard: () => request<Dashboard>("/api/dashboard"),
+  activity: () => request<{ ok: boolean; activity: ActivityItem[] }>("/api/activity"),
+
+  agents: () => request<{ ok: boolean; agents: Agent[] }>("/api/agents"),
+  createAgent: (input: { name: string; role: string; emoji: string; instructions: string }) =>
+    request<{ ok: boolean; agent: Agent; apiKey: string }>("/api/agents", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  agent: (id: string) =>
+    request<{ ok: boolean; agent: Agent; tasks: Task[]; status: AgentStatus }>(`/api/agents/${id}`),
+  updateAgent: (id: string, input: Partial<Pick<Agent, "name" | "role" | "emoji" | "instructions">>) =>
+    request<{ ok: boolean; agent: Agent }>(`/api/agents/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteAgent: (id: string) =>
+    request<{ ok: boolean }>(`/api/agents/${id}`, { method: "DELETE" }),
+  rotateKey: (id: string) =>
+    request<{ ok: boolean; apiKey: string }>(`/api/agents/${id}/rotate-key`, { method: "POST" }),
+
+  tasks: (status?: string) =>
+    request<{ ok: boolean; tasks: Task[] }>(`/api/tasks${status ? `?status=${status}` : ""}`),
+  createTask: (input: { title: string; details: string; agentId: string }) =>
+    request<{ ok: boolean; task: Task }>("/api/tasks", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  task: (id: string) => request<{ ok: boolean; task: Task }>(`/api/tasks/${id}`),
+  updateTask: (id: string, input: Record<string, unknown>) =>
+    request<{ ok: boolean; task: Task }>(`/api/tasks/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteTask: (id: string) => request<{ ok: boolean }>(`/api/tasks/${id}`, { method: "DELETE" }),
+  comment: (id: string, body: string) =>
+    request<{ ok: boolean; comment: Comment }>(`/api/tasks/${id}/comments`, {
+      method: "POST",
+      body: JSON.stringify({ body }),
+    }),
+  approve: (id: string) =>
+    request<{ ok: boolean; task: Task }>(`/api/tasks/${id}/approve`, { method: "POST" }),
+  sendBack: (id: string, note: string) =>
+    request<{ ok: boolean; task: Task }>(`/api/tasks/${id}/send-back`, {
+      method: "POST",
+      body: JSON.stringify({ note }),
+    }),
+};

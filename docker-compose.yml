@@ -1,0 +1,17 @@
+services:
+  crew:
+    build: .
+    ports:
+      - "8787:8787"
+    environment:
+      CREW_ADDR: 0.0.0.0:8787
+      CREW_DB: /data/crew.db
+      PAYTRACKIFY_URL: http://host.docker.internal:8012
+      CREW_ENV: development
+    volumes:
+      - crew-data:/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+volumes:
+  crew-data:

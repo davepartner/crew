@@ -1,0 +1,254 @@
+# Crew
+
+**Give your AI helpers work. See it get done.**
+
+Crew is a small, calm control panel for working with AI helpers. You add a helper, give it
+a task, and the helper picks it up on your own machine. Nothing ships until you say it's good.
+
+This is the rebuilt core of the Paperclip idea, with three deliberate changes:
+
+1. **You must sign in.** Every screen and every API call is behind a session. Sign-in is
+   passwordless — an 8-digit code by email, validated by PayTrackify.
+2. **One job per screen.** No dashboards of dashboards. The home screen answers one question:
+   *what needs me right now?*
+3. **Plain words.** "Helpers", "tasks", "your OK". No agents, adapters, heartbeats, or runs.
+
+| | |
+|---|---|
+| Backend | Go 1.24, stdlib HTTP, SQLite (WAL) |
+| Frontend | React 19 + TypeScript + Vite (no UI framework) |
+| Sign-in | Passwordless email OTP via PayTrackify (`htdocs/email-finance`) |
+| Deploy | One static binary with the UI embedded |
+
+---
+
+## Screens
+
+| Sign in | Home |
+|---|---|
+| ![Sign in](docs/screenshots/login.png) | ![Home](docs/screenshots/home.png) |
+
+| Task | Mobile |
+|---|---|
+| ![Task](docs/screenshots/task.png) | ![Mobile](docs/screenshots/mobile.png) |
+
+---
+
+## Quick start (local)
+
+You need Go 1.24+, Node 20+, and the PayTrackify Laravel app running.
+
+### 1. Start PayTrackify (the sign-in authority)
+
+```bash
+cd ~/htdocs/email-finance
+
+# Local demo database + codes written to the log instead of email
+touch /tmp/paytrackify_dev.sqlite
+DB_CONNECTION=sqlite DB_DATABASE=/tmp/paytrackify_dev.sqlite \
+CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync MAIL_MAILER=log \
+php artisan migrate --force
+
+cd public
+DB_CONNECTION=sqlite DB_DATABASE=/tmp/paytrackify_dev.sqlite \
+CACHE_STORE=file SESSION_DRIVER=file QUEUE_CONNECTION=sync MAIL_MAILER=log \
+AUTH_SERVICE_KEY=dev-service-key \
+php -d display_errors=0 -S 127.0.0.1:8012 \
+  ../vendor/laravel/framework/src/Illuminate/Foundation/resources/server.php
+```
+
+Codes appear in `storage/logs/laravel.log` (search for `sign-in code is`).
+
+> PHP 8.5 prints a deprecation notice from Laravel's database config on this machine. The
+> `-d display_errors=0` flag keeps it out of JSON responses. Production should have
+> `display_errors=Off` anyway.
+
+### 2. Build and start Crew
+
+```bash
+cd crew
+make build          # builds the UI, embeds it, compiles ./bin/crew
+PAYTRACKIFY_URL=http://127.0.0.1:8012 ./bin/crew
+```
+
+Open **http://127.0.0.1:8787**.
+
+For UI work with hot reload:
+
+```bash
+# terminal 1
+go run ./cmd/crew
+
+# terminal 2
+cd web && npm run dev     # http://127.0.0.1:5173, proxies /api to :8787
+```
+
+### 3. Give a helper something to do
+
+1. Open **Helpers → Add a helper**. Copy the key and command from the last step.
+2. On the machine that should do the work:
+
+   ```bash
+   go run ./cmd/crew-worker --server http://127.0.0.1:8787 --key crew_...
+   ```
+
+3. Add a task, assign it to that helper, and watch it move to **Needs your OK**.
+
+The worker runs a shell command locally (default: prints the task title). Point it at a real
+agent CLI when you're ready:
+
+```bash
+go run ./cmd/crew-worker --key crew_... \
+  --command 'claude -p "Task: $CREW_TASK_TITLE. Details: $CREW_TASK_DETAILS"'
+```
+
+---
+
+## Environment
+
+| Variable | Default | What it does |
+|---|---|---|
+| `CREW_ADDR` | `127.0.0.1:8787` | Listen address. Use `0.0.0.0:8787` behind a proxy. |
+| `CREW_DB` | `data/crew.db` | SQLite file. WAL mode, one writer. |
+| `PAYTRACKIFY_URL` | `http://127.0.0.1:8012` | Where sign-in is validated. |
+| `PAYTRACKIFY_TIMEOUT` | `8s` | Provider call deadline. |
+| `CREW_SESSION_CACHE_TTL` | `60s` | How long a validated session is cached. |
+| `CREW_SECURE_COOKIES` | `false` | Set `true` (or `CREW_ENV=production`) behind HTTPS. |
+| `CREW_ENV` | `development` | `production` forces secure cookies. |
+| `CREW_WEB_DIR` | embedded | Serve a different UI folder (useful for previews). |
+
+PayTrackify side (`email-finance/.env`):
+
+```dotenv
+AUTH_SERVICE_KEY=            # optional; only for /api/auth/introspect
+AUTH_OTP_TTL_MINUTES=10
+AUTH_OTP_MAX_ATTEMPTS=5
+AUTH_OTP_RESEND_COOLDOWN_SECONDS=30
+AUTH_OTP_SEND_PER_EMAIL_PER_HOUR=5
+AUTH_OTP_SEND_PER_IP_PER_HOUR=20
+AUTH_OTP_VERIFY_FAILURES_PER_15_MIN=10
+```
+
+---
+
+## How sign-in works
+
+```
+Browser ──POST /api/auth/request──▶ Crew ──POST /api/auth/otp/request──▶ PayTrackify
+                                    │                                      │
+                                    │                              8-digit code by email
+Browser ◀── requestId ──────────────┘                                      │
+   │                                                                       │
+   └──POST /api/auth/verify {requestId, code}──▶ Crew ──verify──▶ PayTrackify
+                                                    │
+                                            session token (stored hashed)
+                                                    │
+Browser ◀── HttpOnly cookie ────────────────────────┘
+```
+
+- Crew never sees a password and never stores one.
+- The session token lives in an `HttpOnly`, `SameSite=Lax` cookie. Only a SHA-256 hash of it
+  exists in the PayTrackify database.
+- Every request validates against PayTrackify (cached for 60 seconds). Revoking a session is
+  effective within that window.
+- Writes require a CSRF token (double-submit cookie). The runner API uses bearer keys and is
+  exempt.
+
+Security invariants live in `email-finance/app/Services/Auth/OtpAuthService.php` and are
+covered by `tests/Feature/Api/OtpAuthTest.php`:
+
+- no user lookup when a code is requested, so responses can't reveal who has an account;
+- codes are hashed with bcrypt and compared in constant time;
+- challenges are single-use, expire in 10 minutes, and die after 5 wrong guesses;
+- rate limits are server-side: per email, per IP, per verify failure, plus a 30-second resend
+  cooldown;
+- requesting a second code does not invalidate the first.
+
+---
+
+## Data model
+
+```
+users      (id, external_id, email, name, created_at)
+agents     (id, user_id, name, role, emoji, instructions, api_key_hash, last_seen_at)
+tasks      (id, user_id, title, details, status, agent_id, created_at, updated_at, completed_at)
+comments   (id, task_id, author_type, author_name, body, created_at)
+activity   (id, user_id, kind, message, task_id, agent_id, created_at)
+```
+
+Every query is scoped by `user_id` in the `WHERE` clause, not in the template. `agents.api_key_hash`
+is the only credential Crew stores; the raw key is shown once.
+
+**Upgrade path:** SQLite is deliberate for a single-node deployment. The store layer is
+isolated in `internal/store`; moving to Postgres means replacing that package and adding
+row-level security (see `ARCHITECTURE.md`).
+
+---
+
+## API
+
+| Method | Path | Who | Purpose |
+|---|---|---|---|
+| `POST` | `/api/auth/request` | anyone | Send a code |
+| `POST` | `/api/auth/verify` | anyone | Exchange code for a session |
+| `POST` | `/api/auth/resend` | anyone | New code under the same request |
+| `POST` | `/api/auth/logout` | session | Sign out (records the reason) |
+| `GET` | `/api/me` | session | Current person |
+| `PATCH` | `/api/me` | session | Change display name |
+| `DELETE` | `/api/me` | session | Delete this workspace |
+| `GET` | `/api/me/export` | session | Download everything |
+| `GET` | `/api/me/sessions` | session | Devices signed in |
+| `DELETE` | `/api/me/sessions/{id}` | session | Sign one out |
+| `GET` | `/api/dashboard` | session | Home screen payload |
+| `GET/POST` | `/api/tasks` | session | List / create |
+| `GET/PATCH/DELETE` | `/api/tasks/{id}` | session | Read / update / delete |
+| `POST` | `/api/tasks/{id}/comments` | session | Add a note |
+| `POST` | `/api/tasks/{id}/approve` | session | Accept the result |
+| `POST` | `/api/tasks/{id}/send-back` | session | Ask for changes |
+| `GET/POST` | `/api/agents` | session | List / add helpers |
+| `GET/PATCH/DELETE` | `/api/agents/{id}` | session | Manage a helper |
+| `POST` | `/api/agents/{id}/rotate-key` | session | New connection key |
+| `POST` | `/api/runner/claim` | helper key | Take the next task |
+| `POST` | `/api/runner/heartbeat` | helper key | Say you're alive |
+| `POST` | `/api/runner/tasks/{id}/progress` | helper key | Post an update |
+| `POST` | `/api/runner/tasks/{id}/complete` | helper key | Post the result |
+
+Errors are always `{ "ok": false, "error": "…" }` with a sentence a person can act on.
+
+---
+
+## Testing
+
+```bash
+make test                 # Go: unit + HTTP integration with a fake PayTrackify
+
+cd ~/htdocs/email-finance
+php artisan test --filter=OtpAuthTest   # 14 tests, 96 assertions
+```
+
+The Go suite covers the whole loop: sign-in, CSRF, helper key, claim, progress, completion,
+approval, cross-workspace isolation, logout, and data deletion.
+
+---
+
+## Deploying
+
+```bash
+CREW_ENV=production \
+CREW_ADDR=127.0.0.1:8787 \
+CREW_DB=/var/lib/crew/crew.db \
+PAYTRACKIFY_URL=https://paytrackify.com \
+./bin/crew
+```
+
+Put it behind Caddy/nginx with TLS, and set `TRUSTED_PROXIES` on the Laravel side so the
+per-IP rate limits see real visitors. `Dockerfile` builds the same binary.
+
+---
+
+## What Crew deliberately does not do (yet)
+
+- **Teams.** One workspace per person. Sharing needs a membership table and per-company scoping.
+- **Running agents server-side.** Helpers run where you point them; Crew is the control plane.
+- **A plugin marketplace.** That was the main thing that made the original unshippable.
+- **Mobile apps.** The UI is responsive and works as a PWA; a native client can call the same API.

@@ -57,13 +57,12 @@ export function Tasks() {
         </Button>
       </header>
 
-      <div className="tabs" role="tablist" aria-label="Filter tasks">
+      <div className="tabs" role="group" aria-label="Filter tasks">
         {filters.map((item) => (
           <button
             key={item.id || "all"}
-            role="tab"
             className="tab"
-            aria-selected={filter === item.id}
+            aria-pressed={filter === item.id}
             onClick={() => choose(item.id)}
           >
             {item.label}

@@ -32,6 +32,9 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 |---|---|
 | ![Task](docs/screenshots/task.png) | ![Mobile](docs/screenshots/mobile.png) |
 
+The UI audit (all 20 laws, account surfaces, and known deviations) lives in
+[`docs/ui-review.md`](docs/ui-review.md).
+
 ---
 
 ## Quick start (local)

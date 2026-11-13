@@ -166,11 +166,13 @@ export function Modal({
 }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!open) return;
 
-    closeRef.current?.focus();
+    const preferred = dialogRef.current?.querySelector<HTMLElement>("[data-autofocus]");
+    (preferred ?? closeRef.current)?.focus();
 
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
@@ -189,7 +191,7 @@ export function Modal({
 
   return (
     <div className="overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialogRef}>
         <div className="modal-head">
           <h2 className="modal-title" id={titleId}>
             {title}
@@ -256,13 +258,12 @@ export function Tabs({
   onChange: (id: string) => void;
 }) {
   return (
-    <div className="tabs" role="tablist">
+    <div className="tabs" role="group" aria-label="Sections">
       {items.map((item) => (
         <button
           key={item.id}
-          role="tab"
           className="tab"
-          aria-selected={active === item.id}
+          aria-pressed={active === item.id}
           onClick={() => onChange(item.id)}
         >
           {item.label}

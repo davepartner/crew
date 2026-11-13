@@ -326,7 +326,7 @@ function SignOutModal({
       onClose={onClose}
       footer={
         <>
-          <Button autoFocus onClick={onClose} disabled={busy}>
+          <Button data-autofocus onClick={onClose} disabled={busy}>
             Cancel
           </Button>
           <Button variant="primary" onClick={signOut} loading={busy}>

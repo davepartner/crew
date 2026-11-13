@@ -79,7 +79,7 @@ export function Home() {
                 : "Everything is moving. Here's the latest."}
           </p>
         </div>
-        <Button variant="primary" onClick={() => setNewTaskOpen(true)}>
+        <Button variant={data.needsYou.length > 0 ? "default" : "primary"} onClick={() => setNewTaskOpen(true)}>
           Add a task
         </Button>
       </header>

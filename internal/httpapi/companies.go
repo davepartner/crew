@@ -17,17 +17,18 @@ import (
 var supportEmailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]{2,}$`)
 
 type companyInput struct {
-	Name             string `json:"name"`
-	BusinessKey      string `json:"businessKey"`
-	Website          string `json:"website"`
-	SupportEmail     string `json:"supportEmail"`
-	Description      string `json:"description"`
-	Audience         string `json:"audience"`
-	Tone             string `json:"tone"`
-	Country          string `json:"country"`
-	Ticker           string `json:"ticker"`
-	MonthlyTaskLimit *int   `json:"monthlyTaskLimit"`
-	CreateTeam       *bool  `json:"createTeam"`
+	Name             string   `json:"name"`
+	BusinessKey      string   `json:"businessKey"`
+	Website          string   `json:"website"`
+	SupportEmail     string   `json:"supportEmail"`
+	Description      string   `json:"description"`
+	Audience         string   `json:"audience"`
+	Tone             string   `json:"tone"`
+	Country          string   `json:"country"`
+	Ticker           string   `json:"ticker"`
+	MonthlyTaskLimit *int     `json:"monthlyTaskLimit"`
+	MonthlyBudgetUSD *float64 `json:"monthlyBudgetUsd"`
+	CreateTeam       *bool    `json:"createTeam"`
 }
 
 func (s *Server) handleListCompanies(w http.ResponseWriter, r *http.Request) {
@@ -95,6 +96,11 @@ func (s *Server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 		country = "Nigeria"
 	}
 
+	budgetUSD := s.cfg.DefaultAIBudgetUSD
+	if body.MonthlyBudgetUSD != nil && *body.MonthlyBudgetUSD >= 0 {
+		budgetUSD = *body.MonthlyBudgetUSD
+	}
+
 	company, err := s.store.CreateCompany(r.Context(), id.UserID, store.CompanyInput{
 		Name:             name,
 		BusinessKey:      businessKey,
@@ -106,6 +112,7 @@ func (s *Server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 		Country:          country,
 		Ticker:           strings.ToUpper(trim(body.Ticker, 20)),
 		MonthlyTaskLimit: limit,
+		MonthlyBudgetUSD: budgetUSD,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't create that company. Please try again.")
@@ -222,6 +229,11 @@ func (s *Server) handleUpdateCompany(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	budgetUSD := current.MonthlyBudgetUSD
+	if body.MonthlyBudgetUSD != nil && *body.MonthlyBudgetUSD >= 0 {
+		budgetUSD = *body.MonthlyBudgetUSD
+	}
+
 	country := current.Country
 	if strings.TrimSpace(body.Country) != "" {
 		country = trim(body.Country, 80)
@@ -238,7 +250,10 @@ func (s *Server) handleUpdateCompany(w http.ResponseWriter, r *http.Request) {
 		Tone:             trim(body.Tone, 40),
 		Country:          country,
 		Ticker:           strings.ToUpper(trim(body.Ticker, 20)),
+		ParentID:         current.ParentID,
+		IsProduct:        current.IsProduct,
 		MonthlyTaskLimit: limit,
+		MonthlyBudgetUSD: budgetUSD,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't save that company. Please try again.")

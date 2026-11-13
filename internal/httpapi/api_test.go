@@ -1201,6 +1201,20 @@ func TestProductsAndFinancials(t *testing.T) {
 		t.Fatalf("product: %d %s", status, raw)
 	}
 
+	var updated struct {
+		Company struct {
+			Name      string  `json:"name"`
+			IsProduct bool    `json:"is_product"`
+			Budget    float64 `json:"monthly_budget_usd"`
+		} `json:"company"`
+	}
+	status, raw = b.do(t, http.MethodPatch, "/api/companies/"+product.Product.ID, map[string]any{
+		"name": "Solar Pro", "description": "Updated", "monthlyBudgetUsd": 7,
+	}, &updated)
+	if status != 200 || !updated.Company.IsProduct || updated.Company.Budget != 7 {
+		t.Fatalf("update product: %d %s %+v", status, raw, updated.Company)
+	}
+
 	var list struct {
 		Products []map[string]any `json:"products"`
 	}

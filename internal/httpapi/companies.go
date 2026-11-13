@@ -24,6 +24,7 @@ type companyInput struct {
 	Description      string `json:"description"`
 	Audience         string `json:"audience"`
 	Tone             string `json:"tone"`
+	Country          string `json:"country"`
 	MonthlyTaskLimit *int   `json:"monthlyTaskLimit"`
 	CreateTeam       *bool  `json:"createTeam"`
 }
@@ -88,6 +89,11 @@ func (s *Server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 		limit = 100000
 	}
 
+	country := trim(body.Country, 80)
+	if country == "" {
+		country = "Nigeria"
+	}
+
 	company, err := s.store.CreateCompany(r.Context(), id.UserID, store.CompanyInput{
 		Name:             name,
 		BusinessKey:      businessKey,
@@ -96,6 +102,7 @@ func (s *Server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 		Description:      trim(body.Description, 2000),
 		Audience:         trim(body.Audience, 200),
 		Tone:             trim(body.Tone, 40),
+		Country:          country,
 		MonthlyTaskLimit: limit,
 	})
 	if err != nil {
@@ -213,6 +220,11 @@ func (s *Server) handleUpdateCompany(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	country := current.Country
+	if strings.TrimSpace(body.Country) != "" {
+		country = trim(body.Country, 80)
+	}
+
 	company, err := s.store.UpdateCompany(r.Context(), id.UserID, current.ID, store.CompanyInput{
 		Name:             name,
 		BusinessKey:      current.BusinessKey,
@@ -221,6 +233,7 @@ func (s *Server) handleUpdateCompany(w http.ResponseWriter, r *http.Request) {
 		Description:      trim(body.Description, 2000),
 		Audience:         trim(body.Audience, 200),
 		Tone:             trim(body.Tone, 40),
+		Country:          country,
 		MonthlyTaskLimit: limit,
 	})
 	if err != nil {

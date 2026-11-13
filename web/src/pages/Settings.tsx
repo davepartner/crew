@@ -44,6 +44,7 @@ export function Settings({
   const [description, setDescription] = useState(company.description);
   const [audience, setAudience] = useState(company.audience);
   const [tone, setTone] = useState(company.tone || "Friendly");
+  const [country, setCountry] = useState(company.country || "Nigeria");
   const [monthlyLimit, setMonthlyLimit] = useState(String(company.monthly_task_limit ?? 0));
   const [monthlyBudget, setMonthlyBudget] = useState(String(company.monthly_budget_usd ?? 0));
   const [members, setMembers] = useState<Member[]>([]);
@@ -59,6 +60,7 @@ export function Settings({
     setDescription(company.description);
     setAudience(company.audience);
     setTone(company.tone || "Friendly");
+    setCountry(company.country || "Nigeria");
     setMonthlyLimit(String(company.monthly_task_limit ?? 0));
     setMonthlyBudget(String(company.monthly_budget_usd ?? 0));
   }, [company]);
@@ -105,6 +107,7 @@ export function Settings({
         description: description.trim(),
         audience: audience.trim(),
         tone,
+        country,
         monthlyTaskLimit: Math.max(0, Number(monthlyLimit) || 0),
         monthlyBudgetUsd: Math.max(0, Number(monthlyBudget) || 0),
       });
@@ -239,6 +242,20 @@ export function Settings({
                 value={description}
                 onChange={(event) => setDescription(event.target.value)}
               />
+            </Field>
+
+            <Field label="Country" htmlFor="settings-company-country">
+              <Select
+                id="settings-company-country"
+                value={country}
+                onChange={(event) => setCountry(event.target.value)}
+              >
+                {["Nigeria", "Kenya", "Ghana", "South Africa", "United Kingdom", "United States", "Canada", "India", "United Arab Emirates"].map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </Select>
             </Field>
 
             <Field label="Tone" htmlFor="settings-company-tone">

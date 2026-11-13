@@ -50,3 +50,21 @@ thinking from this project.
 
 Crew's Ads Studio distills the video-ad brief, script structures and creative scoring
 rubric from these projects.
+
+
+## Foreman
+
+- Source: https://github.com/fatihguner/foreman
+- Copyright (c) 2026 Fatih Guner
+- MIT License
+
+Crew's Advise Me stage model and diagnostic structure are informed by Foreman.
+
+## biz-lens
+
+- Source: https://github.com/sidtheone/biz-lens
+- Copyright (c) 2026 sidtheone
+- MIT License
+
+Crew's Advise Me framework selection and plain-language business analysis are
+informed by biz-lens.

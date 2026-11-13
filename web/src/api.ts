@@ -10,6 +10,7 @@ export type Company = {
   monthly_task_limit: number;
   monthly_budget_usd: number;
   spend_usd: number;
+  country: string;
   role: "owner" | "editor" | "viewer";
   created_at: string;
   agent_count: number;
@@ -91,11 +92,72 @@ export type Member = {
   user_id: string;
   name: string;
   email: string;
+  country: string;
   role: "owner" | "editor" | "viewer";
   is_owner: boolean;
 };
 
 export type Invite = { id: string; email: string; role: string; created_at: string };
+
+export type AdviceCheck = { label: string; done: boolean; evidence: string; action: string };
+
+export type AdviceAgent = {
+  name: string;
+  role: string;
+  emoji: string;
+  instructions: string;
+  skills: string[];
+};
+
+export type AdviceSection = {
+  key: string;
+  title: string;
+  summary: string;
+  status: "done" | "partial" | "todo";
+  progress: number;
+  checks: AdviceCheck[];
+  actions: string[];
+  agents: AdviceAgent[];
+  country_note: string;
+};
+
+export type CountryProfile = {
+  name: string;
+  currency: string;
+  registration: string[];
+  tax: string[];
+  payments: string[];
+  ads: string[];
+  data: string[];
+  notes: string[];
+};
+
+export type AdviceReport = {
+  company_name: string;
+  country: CountryProfile;
+  stage: string;
+  stage_label: string;
+  score: number;
+  done: number;
+  total: number;
+  sections: AdviceSection[];
+  next: string[];
+  has_model: boolean;
+};
+
+export type CompanyAdvice = {
+  analysis: {
+    headline: string;
+    constraints: { title: string; why: string; fix: string }[];
+    next_7_days: string[];
+    opportunities: string[];
+    risks: string[];
+  };
+  model: string;
+  created_at: string;
+};
+
+export type ChatSource = { title: string; url: string };
 
 export type AdsBrief = {
   title: string;
@@ -494,6 +556,16 @@ export const api = {
   testProvider: (key: string) =>
     request<{ ok: boolean; message: string }>(`/api/providers/${key}/test`, { method: "POST" }),
 
+  advice: () =>
+    request<{ ok: boolean; report: AdviceReport; advice?: CompanyAdvice; company: Company }>("/api/advice"),
+  studyCompany: () =>
+    request<{ ok: boolean; advice: CompanyAdvice; cost: number }>("/api/advice/study", { method: "POST" }),
+  adviceChat: (message: string, history: { role: string; content: string }[]) =>
+    request<{ ok: boolean; answer: string; sources: ChatSource[]; cost: number }>("/api/advice/chat", {
+      method: "POST",
+      body: JSON.stringify({ message, history }),
+    }),
+
   generateAds: (brief: AdsBrief) =>
     request<{ ok: boolean; campaign: AdCampaign }>("/api/ads/generate", {
       method: "POST",
@@ -516,7 +588,7 @@ export const api = {
   activity: () => request<{ ok: boolean; activity: ActivityItem[] }>("/api/activity"),
 
   agents: () => request<{ ok: boolean; agents: Agent[] }>("/api/agents"),
-  createAgent: (input: { name: string; role: string; emoji: string; instructions: string }) =>
+  createAgent: (input: { name: string; role: string; emoji: string; instructions: string; skills?: string[] }) =>
     request<{ ok: boolean; agent: Agent; apiKey: string }>("/api/agents", {
       method: "POST",
       body: JSON.stringify(input),

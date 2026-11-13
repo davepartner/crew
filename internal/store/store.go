@@ -150,6 +150,12 @@ func (s *Store) migrate(ctx context.Context) error {
 			completed_at TEXT
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_goals_company ON goals(company_id, completed_at)`,
+		`CREATE TABLE IF NOT EXISTS company_advice (
+			company_id TEXT PRIMARY KEY,
+			analysis TEXT NOT NULL,
+			model TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)`,
 		`CREATE TABLE IF NOT EXISTS ad_campaigns (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,
@@ -233,6 +239,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		{"activity", "company_id", "TEXT NOT NULL DEFAULT ''"},
 		{"companies", "monthly_task_limit", "INTEGER NOT NULL DEFAULT 0"},
 		{"companies", "monthly_budget_usd", "REAL NOT NULL DEFAULT 0"},
+		{"companies", "country", "TEXT NOT NULL DEFAULT 'Nigeria'"},
 	}
 
 	for _, column := range columns {

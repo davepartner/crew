@@ -8,6 +8,7 @@ import { TaskDetail } from "./pages/TaskDetail";
 import { Helpers } from "./pages/Helpers";
 import { HelperDetail } from "./pages/HelperDetail";
 import { Marketing } from "./pages/Marketing";
+import { AdviseMe } from "./pages/AdviseMe";
 import { Routines } from "./pages/Routines";
 import { ActivityPage } from "./pages/Activity";
 import { Settings } from "./pages/Settings";
@@ -102,6 +103,14 @@ export default function App() {
   if (user === null) return <Login onSignedIn={setUser} />;
   if (companies === null) return <Splash />;
 
+  if (path === "/advise" && companies.length === 0) {
+    return (
+      <ToastProvider>
+        <AdviseMe />
+      </ToastProvider>
+    );
+  }
+
   if (path === "/new-company" || companies.length === 0) {
     return (
       <ToastProvider>
@@ -154,6 +163,7 @@ type NavItem = { to: string; label: string; icon: string; match: (path: string) 
 
 const navItems: NavItem[] = [
   { to: "/", label: "Home", icon: "⌂", match: (path) => path === "/" },
+  { to: "/advise", label: "Advise Me", icon: "◎", match: (path) => path === "/advise" },
   { to: "/tasks", label: "Tasks", icon: "☑", match: (path) => path.startsWith("/tasks") },
   { to: "/helpers", label: "Helpers", icon: "✦", match: (path) => path.startsWith("/helpers") },
   { to: "/marketing", label: "Marketing", icon: "◈", match: (path) => path === "/marketing" },
@@ -518,6 +528,7 @@ function Route({
   if (path === "/tasks") return <Tasks />;
   if (path === "/helpers") return <Helpers />;
   if (path === "/marketing") return <Marketing />;
+  if (path === "/advise") return <AdviseMe />;
   if (path === "/routines") return <Routines />;
   if (path === "/activity") return <ActivityPage />;
   if (path === "/settings")

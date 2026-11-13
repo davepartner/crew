@@ -29,6 +29,7 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 | Presets | 66 business types across 11 categories, each with a 3-person team and 3 tasks |
 | Skills | 53 marketing skills (MIT) from Corey Haines' marketingskills, attached per helper |
 | Ads Studio | Platform-native Meta, TikTok and YouTube concepts, scripts, hooks, test plans and compliance checks |
+| Advise Me | Country-aware company study, checklist, next actions, helper creation and a floating advisor |
 | Routines | Daily, weekday, weekly or monthly recurring tasks |
 | Goals | Numeric goals with progress, due dates and completion |
 | Included model | DeepSeek by default, proxied server-side so helpers never see the key |
@@ -298,6 +299,9 @@ row-level security (see `ARCHITECTURE.md`).
 | `POST` | `/api/ads/generate` | session | Generate a multi-platform ad campaign |
 | `GET` | `/api/ads/campaigns` | session | Saved campaigns |
 | `GET/DELETE` | `/api/ads/campaigns/{id}` | session | Open or delete a campaign |
+| `GET` | `/api/advice` | session | Company study, checklist and cached deep study |
+| `POST` | `/api/advice/study` | session | Generate or refresh the deep study |
+| `POST` | `/api/advice/chat` | session | Ask the advisor about the company |
 | `PUT/DELETE` | `/api/providers/{key}` | session | Save / remove an encrypted key |
 | `POST` | `/api/providers/{key}/test` | session | Live key check |
 | `GET/POST` | `/api/members` | session | Team list / invite by email |

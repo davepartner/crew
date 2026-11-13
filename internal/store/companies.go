@@ -16,6 +16,7 @@ type Company struct {
 	Description      string    `json:"description"`
 	Audience         string    `json:"audience"`
 	Tone             string    `json:"tone"`
+	Country          string    `json:"country"`
 	MonthlyTaskLimit int       `json:"monthly_task_limit"`
 	MonthlyBudgetUSD float64   `json:"monthly_budget_usd"`
 	SpendUSD         float64   `json:"spend_usd"`
@@ -33,6 +34,7 @@ type CompanyInput struct {
 	Description      string
 	Audience         string
 	Tone             string
+	Country          string
 	MonthlyTaskLimit int
 	MonthlyBudgetUSD float64
 }
@@ -47,15 +49,16 @@ func (s *Store) CreateCompany(ctx context.Context, userID string, input CompanyI
 		Description:      input.Description,
 		Audience:         input.Audience,
 		Tone:             input.Tone,
+		Country:          input.Country,
 		MonthlyTaskLimit: input.MonthlyTaskLimit,
 		CreatedAt:        time.Now().UTC(),
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO companies (id, user_id, name, business_key, website, support_email, description, audience, tone, monthly_task_limit, monthly_budget_usd, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO companies (id, user_id, name, business_key, website, support_email, description, audience, tone, country, monthly_task_limit, monthly_budget_usd, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		company.ID, userID, company.Name, company.BusinessKey, company.Website,
-		company.SupportEmail, company.Description, company.Audience, company.Tone,
+		company.SupportEmail, company.Description, company.Audience, company.Tone, company.Country,
 		company.MonthlyTaskLimit, company.MonthlyBudgetUSD, company.CreatedAt.Format(TimeFormat))
 	if err != nil {
 		return Company{}, err
@@ -67,7 +70,7 @@ func (s *Store) CreateCompany(ctx context.Context, userID string, input CompanyI
 func (s *Store) ListCompanies(ctx context.Context, userID string) ([]Company, error) {
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT c.id, c.name, c.business_key, c.website, c.support_email, c.description,
-		       c.audience, c.tone, c.monthly_task_limit, c.monthly_budget_usd,
+		       c.audience, c.tone, c.country, c.monthly_task_limit, c.monthly_budget_usd,
 		       (SELECT COALESCE(SUM(u.cost_usd), 0) FROM model_usage u
 		        WHERE u.company_id = c.id
 		          AND strftime('%Y-%m', u.created_at) = strftime('%Y-%m', 'now')),
@@ -99,7 +102,7 @@ func (s *Store) ListCompanies(ctx context.Context, userID string) ([]Company, er
 func (s *Store) GetCompany(ctx context.Context, userID, id string) (Company, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT c.id, c.name, c.business_key, c.website, c.support_email, c.description,
-		       c.audience, c.tone, c.monthly_task_limit, c.monthly_budget_usd,
+		       c.audience, c.tone, c.country, c.monthly_task_limit, c.monthly_budget_usd,
 		       (SELECT COALESCE(SUM(u.cost_usd), 0) FROM model_usage u
 		        WHERE u.company_id = c.id
 		          AND strftime('%Y-%m', u.created_at) = strftime('%Y-%m', 'now')),
@@ -122,10 +125,10 @@ func (s *Store) GetCompany(ctx context.Context, userID, id string) (Company, err
 func (s *Store) UpdateCompany(ctx context.Context, userID, id string, input CompanyInput) (Company, error) {
 	_, err := s.db.ExecContext(ctx, `
 		UPDATE companies
-		SET name = ?, business_key = ?, website = ?, support_email = ?, description = ?, audience = ?, tone = ?, monthly_task_limit = ?, monthly_budget_usd = ?
+		SET name = ?, business_key = ?, website = ?, support_email = ?, description = ?, audience = ?, tone = ?, country = ?, monthly_task_limit = ?, monthly_budget_usd = ?
 		WHERE user_id = ? AND id = ?`,
 		input.Name, input.BusinessKey, input.Website, input.SupportEmail,
-		input.Description, input.Audience, input.Tone, input.MonthlyTaskLimit, input.MonthlyBudgetUSD, userID, id)
+		input.Description, input.Audience, input.Tone, input.Country, input.MonthlyTaskLimit, input.MonthlyBudgetUSD, userID, id)
 	if err != nil {
 		return Company{}, err
 	}
@@ -175,6 +178,9 @@ func (s *Store) DeleteCompany(ctx context.Context, userID, id string) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM ad_campaigns WHERE company_id = ?`, id); err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM company_advice WHERE company_id = ?`, id); err != nil {
+			return err
+		}
 		_, err = tx.ExecContext(ctx, `DELETE FROM companies WHERE id = ?`, id)
 		return err
 	})
@@ -185,7 +191,7 @@ func scanCompany(row scanner) (Company, error) {
 	var created string
 
 	err := row.Scan(&company.ID, &company.Name, &company.BusinessKey, &company.Website,
-		&company.SupportEmail, &company.Description, &company.Audience, &company.Tone,
+		&company.SupportEmail, &company.Description, &company.Audience, &company.Tone, &company.Country,
 		&company.MonthlyTaskLimit, &company.MonthlyBudgetUSD, &company.SpendUSD, &created,
 		&company.Role, &company.AgentCount, &company.TaskCount)
 	if err != nil {

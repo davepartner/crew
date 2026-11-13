@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { navigate } from "../router";
 import { api, ApiError, type BusinessPreset, type Company, type PresetDetail } from "../api";
 import { ModelsPanel } from "../components/ModelsPanel";
 import { Button, Field, Input, Select, Textarea, useToast } from "../ui";
 
 const tones = ["Friendly", "Professional", "Playful", "Direct", "Warm"];
+
+const countries = ["Nigeria", "Kenya", "Ghana", "South Africa", "United Kingdom", "United States", "Canada", "India", "United Arab Emirates"];
 
 export function Onboarding({
   onDone,
@@ -24,6 +27,7 @@ export function Onboarding({
   const [description, setDescription] = useState("");
   const [audience, setAudience] = useState("");
   const [tone, setTone] = useState("Friendly");
+  const [country, setCountry] = useState("Nigeria");
   const [createTeam, setCreateTeam] = useState(true);
   const [created, setCreated] = useState<Company | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,6 +98,7 @@ export function Onboarding({
         name: name.trim(),
         businessKey: selected.key,
         website: website.trim(),
+        country,
         supportEmail: supportEmail.trim(),
         description: description.trim(),
         audience: audience.trim(),
@@ -139,9 +144,15 @@ export function Onboarding({
         {step === 1 ? (
           <>
             <h1 className="page-title">What business do you want to run?</h1>
-            <p className="page-sub mb-24">
+            <p className="page-sub mb-16">
               Pick the closest match. We'll set up a team of AI helpers and their first tasks. You can change
               everything later.
+            </p>
+            <p className="small muted mb-24">
+              Not sure where to start?{" "}
+              <button className="link-button" onClick={() => navigate("/advise")}>
+                Let the advisor study your business first.
+              </button>
             </p>
 
             <Field label="Search businesses" htmlFor="business-search">
@@ -293,6 +304,16 @@ export function Onboarding({
                   value={supportEmail}
                   onChange={(event) => setSupportEmail(event.target.value)}
                 />
+              </Field>
+
+              <Field label="Country" htmlFor="company-country">
+                <Select id="company-country" value={country} onChange={(event) => setCountry(event.target.value)}>
+                  {countries.map((item) => (
+                    <option key={item} value={item}>
+                      {item}
+                    </option>
+                  ))}
+                </Select>
               </Field>
 
               <Field label="Who do you serve?" hint="Optional, but it sharpens the writing." htmlFor="company-audience">

@@ -107,6 +107,10 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/marketing/analyze", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleMarketingAnalyze))))
 
 	// Work, scoped to the active company.
+	mux.HandleFunc("GET /api/advice", s.requireUser(s.requireCompany(s.handleAdvice)))
+	mux.HandleFunc("POST /api/advice/study", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleStudyCompany))))
+	mux.HandleFunc("POST /api/advice/chat", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleAdviceChat))))
+
 	mux.HandleFunc("GET /api/dashboard", s.requireUser(s.requireCompany(s.handleDashboard)))
 	mux.HandleFunc("GET /api/announcements", s.requireUser(s.handleAnnouncements))
 	mux.HandleFunc("GET /api/notifications", s.requireUser(s.requireCompany(s.handleNotifications)))

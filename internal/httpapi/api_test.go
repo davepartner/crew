@@ -1147,3 +1147,37 @@ func TestReviewCreatesANotification(t *testing.T) {
 		t.Fatalf("notifications: %d %s %+v", status, raw, notifications)
 	}
 }
+
+func TestAdviceReportAndNoModelStudy(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var advice struct {
+		Report struct {
+			CompanyName string           `json:"company_name"`
+			Country     map[string]any   `json:"country"`
+			Score       int              `json:"score"`
+			Sections    []map[string]any `json:"sections"`
+			Next        []string         `json:"next"`
+		} `json:"report"`
+	}
+	status, raw := b.do(t, http.MethodGet, "/api/advice", nil, &advice)
+	if status != 200 {
+		t.Fatalf("advice: %d %s", status, raw)
+	}
+	if advice.Report.CompanyName != "Test Co" || len(advice.Report.Sections) < 8 {
+		t.Fatalf("report: %+v", advice.Report)
+	}
+	if advice.Report.Country["name"] != "Nigeria" {
+		t.Fatalf("country: %v", advice.Report.Country)
+	}
+	if len(advice.Report.Next) == 0 {
+		t.Fatal("next actions missing")
+	}
+
+	status, raw = b.do(t, http.MethodPost, "/api/advice/study", nil, nil)
+	if status != 409 || !strings.Contains(raw, "no_model") {
+		t.Fatalf("study without model: %d %s", status, raw)
+	}
+}

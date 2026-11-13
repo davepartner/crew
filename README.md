@@ -50,7 +50,8 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 |---|---|
 | ![Sign in](docs/screenshots/login.png) | ![Home](docs/screenshots/home.png) |
 
-| Ads Studio | Marketing library |
+| Advise Me | Ads Studio |
+| ![Advise Me](docs/screenshots/advise-me.png) | ![Ads Studio](docs/screenshots/ads-studio.png) |
 | ![Ads Studio](docs/screenshots/ads-studio.png) | ![Marketing](docs/screenshots/marketing.png) |
 |---|---|
 | ![Marketing](docs/screenshots/marketing.png) | ![Company](docs/screenshots/company.png) |

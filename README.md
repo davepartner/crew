@@ -57,6 +57,8 @@ This is the rebuilt core of the Paperclip idea, with five deliberate changes:
 
 | Advise Me | Products |
 | ![Advise Me](docs/screenshots/advise-me-v2.png) | ![Products](docs/screenshots/products.png) |
+| Portfolio | Financial audit |
+| ![Portfolio](docs/screenshots/portfolio.png) | ![Financial audit](docs/screenshots/financial-audit.png) |
 | Integrations | Financial model |
 | ![Integrations](docs/screenshots/integrations.png) | ![Financial model](docs/screenshots/financial-model.png) |
 | ![Advise Me](docs/screenshots/advise-me.png) | ![Ads Studio](docs/screenshots/ads-studio.png) |

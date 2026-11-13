@@ -26,7 +26,11 @@ func (s *Server) handleAdvice(w http.ResponseWriter, r *http.Request) {
 	}
 
 	report := advise.Build(input)
-	cached, _ := s.store.GetCompanyAdvice(r.Context(), company.ID)
+
+	var cached any
+	if advice, err := s.store.GetCompanyAdvice(r.Context(), company.ID); err == nil {
+		cached = advice
+	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":      true,

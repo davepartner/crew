@@ -484,7 +484,7 @@ function StudyCard({
     );
   }
 
-  if (!advice) {
+  if (!advice || !advice.analysis) {
     return (
       <section className="card advise-study mt-16">
         <div className="row-between" style={{ alignItems: "flex-start" }}>
@@ -509,7 +509,7 @@ function StudyCard({
         <div>
           <p className="advise-label">Deep study</p>
           <h2 className="section-title" style={{ marginTop: 4 }}>
-            {advice.analysis.headline}
+            {advice.analysis?.headline}
           </h2>
           <p className="tiny muted">{advice.model} · {new Date(advice.created_at).toLocaleDateString()}</p>
         </div>
@@ -519,7 +519,7 @@ function StudyCard({
       </div>
 
       <div className="advise-constraints">
-        {(advice.analysis.constraints ?? []).map((item, index) => (
+        {(advice.analysis?.constraints ?? []).map((item, index) => (
           <div className="advise-constraint" key={index}>
             <strong>{item.title}</strong>
             <p>{item.why}</p>
@@ -531,15 +531,15 @@ function StudyCard({
       <div className="advise-study-grid">
         <div>
           <span className="advise-label">Next 7 days</span>
-          <ol>{advice.analysis.next_7_days?.map((item, i) => <li key={i}>{item}</li>)}</ol>
+          <ol>{advice.analysis?.next_7_days?.map((item, i) => <li key={i}>{item}</li>)}</ol>
         </div>
         <div>
           <span className="advise-label">Opportunities</span>
-          <ul>{advice.analysis.opportunities?.map((item, i) => <li key={i}>{item}</li>)}</ul>
+          <ul>{advice.analysis?.opportunities?.map((item, i) => <li key={i}>{item}</li>)}</ul>
         </div>
         <div>
           <span className="advise-label">Risks</span>
-          <ul>{advice.analysis.risks?.map((item, i) => <li key={i}>{item}</li>)}</ul>
+          <ul>{advice.analysis?.risks?.map((item, i) => <li key={i}>{item}</li>)}</ul>
         </div>
       </div>
       {error ? <p className="form-error mt-16">{error}</p> : null}
@@ -588,12 +588,7 @@ function SectionCard({
         </div>
       ) : null}
 
-      {section.country_note ? (
-        <p className="advise-country-note">
-          <strong>{section.country_note.split(":")[0]}:</strong>{" "}
-          {section.country_note.split(":").slice(1).join(":") || section.country_note}
-        </p>
-      ) : null}
+      {section.country_note ? <p className="advise-country-note">{section.country_note}</p> : null}
 
       <div className="advise-agents">
         {section.agents.map((rec) => {
@@ -613,6 +608,15 @@ function SectionCard({
       </div>
     </section>
   );
+}
+
+function richText(text: string) {
+  return text.split(/(\*\*[^*]+\*\*)/g).map((part, index) => {
+    if (part.startsWith("**") && part.endsWith("**") && part.length > 4) {
+      return <strong key={index}>{part.slice(2, -2)}</strong>;
+    }
+    return part;
+  });
 }
 
 function AgentModal({
@@ -765,7 +769,7 @@ function AdviceChat({ company, enabled }: { company: Company; enabled: boolean }
 
             {turns.map((turn, index) => (
               <div key={index} className={`advisor-turn ${turn.role}`}>
-                <p>{turn.content}</p>
+                <p>{richText(turn.content)}</p>
                 {turn.sources?.length ? (
                   <div className="advisor-sources">
                     {turn.sources.map((source) => (

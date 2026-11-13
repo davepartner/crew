@@ -147,14 +147,16 @@ export function Home() {
 
         {data.working.length === 0 && data.upNext.length === 0 ? (
           <EmptyState
-            title="No work in the queue"
+            title={data.counts.review > 0 ? "Nothing else in the queue" : "No work in the queue"}
             action={
-              <Button variant="primary" size="sm" onClick={() => setNewTaskOpen(true)}>
-                Add your first task
+              <Button size="sm" onClick={() => setNewTaskOpen(true)}>
+                Add a task
               </Button>
             }
           >
-            Add a task, pick a helper, and it will show up here.
+            {data.counts.review > 0
+              ? "Everything else is waiting for your OK above."
+              : "Add a task, pick a helper, and it will show up here."}
           </EmptyState>
         ) : (
           <div className="list">

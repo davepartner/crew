@@ -22,6 +22,7 @@ type AgentBrief struct {
 
 type Comment struct {
 	ID         string    `json:"id"`
+	TaskID     string    `json:"task_id,omitempty"`
 	AuthorType string    `json:"author_type"`
 	AuthorName string    `json:"author_name"`
 	Body       string    `json:"body"`
@@ -303,6 +304,34 @@ func (s *Store) OpenTasksForAgent(ctx context.Context, agentID string) ([]Task, 
 	}
 
 	return tasks, rows.Err()
+}
+
+// CommentsForUser returns every note in a workspace for data export.
+func (s *Store) CommentsForUser(ctx context.Context, userID string) ([]Comment, error) {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT c.id, c.task_id, c.author_type, c.author_name, c.body, c.created_at
+		FROM comments c
+		JOIN tasks t ON t.id = c.task_id
+		WHERE t.user_id = ?
+		ORDER BY c.created_at ASC`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	comments := []Comment{}
+	for rows.Next() {
+		var c Comment
+		var taskID, created string
+		if err := rows.Scan(&c.ID, &taskID, &c.AuthorType, &c.AuthorName, &c.Body, &created); err != nil {
+			return nil, err
+		}
+		c.TaskID = taskID
+		c.CreatedAt = ParseTime(created)
+		comments = append(comments, c)
+	}
+
+	return comments, rows.Err()
 }
 
 func (s *Store) listComments(ctx context.Context, taskID string) ([]Comment, error) {

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Agent, type Task } from "../api";
+import { NewTaskModal } from "../components/NewTaskModal";
 import { TaskRow } from "../components/rows";
 import { Link, navigate } from "../router";
 import { relativeTime } from "../time";
@@ -19,6 +20,7 @@ export function HelperDetail({ id }: { id: string }) {
   const [key, setKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [taskOpen, setTaskOpen] = useState(false);
 
   const load = useCallback(() => {
     api
@@ -129,6 +131,9 @@ export function HelperDetail({ id }: { id: string }) {
             </p>
           </div>
         </div>
+        <Button variant="primary" onClick={() => setTaskOpen(true)}>
+          Give {agent.name} a task
+        </Button>
       </header>
 
       <div className="grid-2" style={{ alignItems: "start" }}>
@@ -162,7 +167,7 @@ export function HelperDetail({ id }: { id: string }) {
                 </div>
               </>
             ) : (
-              <Button variant="primary" onClick={makeKey} loading={busy}>
+              <Button onClick={makeKey} loading={busy}>
                 Make a connection key
               </Button>
             )}
@@ -171,7 +176,16 @@ export function HelperDetail({ id }: { id: string }) {
           <section className="card">
             <h2 className="section-title mb-8">Work</h2>
             {tasks.length === 0 ? (
-              <EmptyState title="Nothing assigned right now">Give this helper a task and it will show up here.</EmptyState>
+              <EmptyState
+                title="Nothing assigned right now"
+                action={
+                  <Button size="sm" onClick={() => setTaskOpen(true)}>
+                    Give {agent.name} a task
+                  </Button>
+                }
+              >
+                Give this helper a task and it will show up here.
+              </EmptyState>
             ) : (
               <div className="list">
                 {tasks.map((task) => (
@@ -210,7 +224,7 @@ export function HelperDetail({ id }: { id: string }) {
               />
             </Field>
 
-            <Button variant="primary" onClick={save} loading={busy}>
+            <Button onClick={save} loading={busy}>
               Save changes
             </Button>
           </section>
@@ -220,12 +234,27 @@ export function HelperDetail({ id }: { id: string }) {
             <p className="small muted mb-16">
               Its key stops working and it disappears from your team. Tasks it finished stay where they are.
             </p>
-            <Button variant="quiet" size="sm" onClick={() => setRemoveOpen(true)}>
+            <Button
+              variant="quiet"
+              size="sm"
+              style={{ color: "var(--danger)" }}
+              onClick={() => setRemoveOpen(true)}
+            >
               Remove {agent.name}
             </Button>
           </section>
         </div>
       </div>
+
+      <NewTaskModal
+        open={taskOpen}
+        defaultAgentId={agent.id}
+        onClose={() => setTaskOpen(false)}
+        onCreated={(task) => {
+          load();
+          navigate(`/tasks/${task.id}`);
+        }}
+      />
 
       <Modal
         open={removeOpen}

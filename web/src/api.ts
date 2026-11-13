@@ -92,7 +92,11 @@ function readCookie(name: string): string {
   return "";
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  options: { silent?: boolean } = {},
+): Promise<T> {
   const method = (init.method ?? "GET").toUpperCase();
   const headers = new Headers(init.headers);
 
@@ -118,13 +122,27 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   });
 
   const text = await response.text();
-  const payload = text ? JSON.parse(text) : {};
+  let payload: Record<string, unknown> = {};
+
+  if (text) {
+    try {
+      payload = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      throw new ApiError("We couldn't read the server's reply. Please refresh and try again.", response.status);
+    }
+  }
+
+  if (response.status === 401 && !options.silent) {
+    // Let the app drop to the sign-in screen instead of rendering an error on
+    // whichever page happened to be open when the session ended.
+    window.dispatchEvent(new Event("crew:unauthorized"));
+  }
 
   if (!response.ok) {
     throw new ApiError(
-      payload.error ?? "Something went wrong. Please try again.",
+      typeof payload.error === "string" ? payload.error : "Something went wrong. Please try again.",
       response.status,
-      payload.retry_after ?? 0,
+      typeof payload.retry_after === "number" ? payload.retry_after : 0,
     );
   }
 
@@ -134,7 +152,9 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
 export const api = {
   csrf: () => fetch("/api/csrf", { credentials: "same-origin" }),
 
-  me: () => request<{ ok: boolean; user: User }>("/api/me"),
+  // The initial session probe must not look like an expiry, or a first-time
+  // visitor would be told they were signed out.
+  me: () => request<{ ok: boolean; user: User }>("/api/me", {}, { silent: true }),
   updateMe: (name: string) =>
     request<{ ok: boolean; user: User }>("/api/me", {
       method: "PATCH",

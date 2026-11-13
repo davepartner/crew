@@ -175,7 +175,32 @@ export function Modal({
     (preferred ?? closeRef.current)?.focus();
 
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        onClose();
+        return;
+      }
+
+      if (event.key !== "Tab" || !dialogRef.current) return;
+
+      // Keep Tab inside the dialog.
+      const focusable = Array.from(
+        dialogRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((element) => element.offsetParent !== null);
+
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
 
     document.addEventListener("keydown", onKey);
@@ -218,7 +243,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const push = useCallback((message: string, kind: "info" | "error" = "info") => {
     const id = Date.now() + Math.random();
-    setToasts((current) => [...current, { id, message, kind }]);
+    setToasts((current) => [...current, { id, message, kind }].slice(-3));
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 4200);

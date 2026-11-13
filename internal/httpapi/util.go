@@ -46,6 +46,13 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A missing asset is a 404, not the app shell. Returning HTML here would
+	// make the browser parse it as JavaScript.
+	if ext := path.Ext(name); ext != "" && ext != ".html" {
+		http.NotFound(w, r)
+		return
+	}
+
 	data, err := fs.ReadFile(h.fsys, "index.html")
 	if err != nil {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/davepartner/crew/internal/payauth"
 )
@@ -46,12 +47,14 @@ func decodeJSON(r *http.Request, dst any) error {
 	return nil
 }
 
+// trim limits by characters, not bytes, so a name or title in any script is
+// never cut in the middle of a code point.
 func trim(value string, max int) string {
 	value = strings.TrimSpace(value)
-	if len(value) > max {
-		return value[:max]
+	if utf8.RuneCountInString(value) <= max {
+		return value
 	}
-	return value
+	return string([]rune(value)[:max])
 }
 
 // authErrorMessage turns a PayTrackify failure into a sentence a person can act

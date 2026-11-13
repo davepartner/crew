@@ -12,7 +12,7 @@ import (
 var emailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]{2,}$`)
 
 func (s *Server) handleAuthRequest(w http.ResponseWriter, r *http.Request) {
-	if !s.limiter.allow("auth:" + clientIP(r)) {
+	if !s.limiter.allow("auth:" + s.clientIP(r)) {
 		writeError(w, http.StatusTooManyRequests, "Too many tries from this device. Please wait a minute.")
 		return
 	}
@@ -31,7 +31,7 @@ func (s *Server) handleAuthRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	requestID, resendAfter, err := s.auth.RequestCode(r.Context(), email, clientIP(r))
+	requestID, resendAfter, err := s.auth.RequestCode(r.Context(), email, s.clientIP(r))
 	if err != nil {
 		message, status, retryAfter := authErrorMessage(err)
 		writeJSON(w, status, errorBody{OK: false, Error: message, RetryAfter: retryAfter})
@@ -47,7 +47,7 @@ func (s *Server) handleAuthRequest(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthResend(w http.ResponseWriter, r *http.Request) {
-	if !s.limiter.allow("auth:" + clientIP(r)) {
+	if !s.limiter.allow("auth:" + s.clientIP(r)) {
 		writeError(w, http.StatusTooManyRequests, "Too many tries from this device. Please wait a minute.")
 		return
 	}
@@ -60,7 +60,7 @@ func (s *Server) handleAuthResend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	resendAfter, err := s.auth.ResendCode(r.Context(), body.RequestID, clientIP(r))
+	resendAfter, err := s.auth.ResendCode(r.Context(), body.RequestID, s.clientIP(r))
 	if err != nil {
 		message, status, retryAfter := authErrorMessage(err)
 		writeJSON(w, status, errorBody{OK: false, Error: message, RetryAfter: retryAfter})
@@ -75,7 +75,7 @@ func (s *Server) handleAuthResend(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
-	if !s.limiter.allow("auth:" + clientIP(r)) {
+	if !s.limiter.allow("auth:" + s.clientIP(r)) {
 		writeError(w, http.StatusTooManyRequests, "Too many tries from this device. Please wait a minute.")
 		return
 	}
@@ -95,7 +95,7 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := s.auth.VerifyCode(r.Context(), body.RequestID, code, clientIP(r))
+	result, err := s.auth.VerifyCode(r.Context(), body.RequestID, code, s.clientIP(r))
 	if err != nil {
 		message, status, retryAfter := authErrorMessage(err)
 		writeJSON(w, status, errorBody{OK: false, Error: message, RetryAfter: retryAfter})
@@ -223,6 +223,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 	agents, _ := s.store.ListAgents(r.Context(), id.UserID)
 	tasks, _ := s.store.ListTasks(r.Context(), id.UserID, "")
 	activity, _ := s.store.ListActivity(r.Context(), id.UserID, 100)
+	comments, _ := s.store.CommentsForUser(r.Context(), id.UserID)
 
 	w.Header().Set("Content-Disposition", `attachment; filename="crew-export.json"`)
 
@@ -232,6 +233,7 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		"agents":      agents,
 		"tasks":       tasks,
 		"activity":    activity,
+		"comments":    comments,
 	})
 }
 
@@ -257,6 +259,11 @@ func (s *Server) handleRevokeSession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, status, errorBody{OK: false, Error: message, RetryAfter: retryAfter})
 		return
 	}
+
+	// Drop the cached identity so the revocation takes effect on the very next
+	// request. If this device revoked a different session, the next request
+	// simply revalidates and carries on.
+	s.cache.Delete(id.Token)
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }

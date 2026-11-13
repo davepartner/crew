@@ -169,5 +169,10 @@ func (s *Server) runnerTask(w http.ResponseWriter, r *http.Request, agent *agent
 		return store.Task{}, false
 	}
 
+	if task.Status == store.StatusDone {
+		writeError(w, http.StatusConflict, "That task is already finished.")
+		return store.Task{}, false
+	}
+
 	return task, true
 }

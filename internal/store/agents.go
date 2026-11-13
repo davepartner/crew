@@ -60,6 +60,12 @@ func (s *Store) ListAgents(ctx context.Context, userID string) ([]Agent, error) 
 	return agents, rows.Err()
 }
 
+func (s *Store) CountAgents(ctx context.Context, userID string) (int, error) {
+	var count int
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM agents WHERE user_id = ?`, userID).Scan(&count)
+	return count, err
+}
+
 func (s *Store) GetAgent(ctx context.Context, userID, id string) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
 		SELECT id, name, role, emoji, instructions, last_seen_at, created_at

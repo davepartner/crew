@@ -18,6 +18,11 @@ export function Login({ onSignedIn }: { onSignedIn: (user: User) => void }) {
   const [verifying, setVerifying] = useState(false);
   const [name, setName] = useState("");
   const [signedInUser, setSignedInUser] = useState<User | null>(null);
+  const [signedOutNotice] = useState(() => {
+    const value = window.sessionStorage.getItem("crew:signed-out") === "1";
+    window.sessionStorage.removeItem("crew:signed-out");
+    return value;
+  });
 
   const codeRef = useRef<HTMLInputElement>(null);
   const nameRef = useRef<HTMLInputElement>(null);
@@ -82,6 +87,9 @@ export function Login({ onSignedIn }: { onSignedIn: (user: User) => void }) {
         onSignedIn(result.user);
       }
     } catch (err) {
+      if (err instanceof ApiError && err.retryAfter > 0) {
+        setSecondsLeft(err.retryAfter);
+      }
       setError(messageOf(err));
       setCode("");
       codeRef.current?.focus();
@@ -189,6 +197,16 @@ export function Login({ onSignedIn }: { onSignedIn: (user: User) => void }) {
             <form onSubmit={requestCode} noValidate>
               <h1 className="auth-title">Sign in or create your account</h1>
               <p className="auth-sub">Enter your email. We'll send you a code — no password needed.</p>
+
+              {signedOutNotice && !error ? (
+                <div
+                  className="card card-tight mb-16"
+                  style={{ background: "var(--surface-2)", borderColor: "transparent" }}
+                  role="status"
+                >
+                  <span className="small">You were signed out. Sign in again to pick up where you left off.</span>
+                </div>
+              ) : null}
 
               {error ? (
                 <div className="form-error" role="alert">

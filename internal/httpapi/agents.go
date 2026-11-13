@@ -110,6 +110,16 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		emoji = "🤖"
 	}
 
+	count, err := s.store.CountAgents(r.Context(), id.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "We couldn't add that helper. Please try again.")
+		return
+	}
+	if count >= 50 {
+		writeError(w, http.StatusUnprocessableEntity, "You have 50 helpers, which is the limit. Remove one before adding another.")
+		return
+	}
+
 	key := newAgentKey()
 
 	agent, err := s.store.CreateAgent(r.Context(), id.UserID, name, role, emoji,

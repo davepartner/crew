@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, ApiError, type Agent, type Comment, type Task, type TaskStatus } from "../api";
 import { Link, navigate } from "../router";
 import { relativeTime } from "../time";
-import { Button, Field, Modal, Select, StatusBadge, Textarea, useToast } from "../ui";
+import { Button, Field, Input, Modal, Select, StatusBadge, Textarea, useToast } from "../ui";
 
 const statusOptions: { value: TaskStatus; label: string }[] = [
   { value: "todo", label: "To do" },
@@ -18,6 +18,8 @@ export function TaskDetail({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [draftDetails, setDraftDetails] = useState("");
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [draftTitle, setDraftTitle] = useState("");
   const [note, setNote] = useState("");
   const [sendBackOpen, setSendBackOpen] = useState(false);
   const [sendBackNote, setSendBackNote] = useState("");
@@ -30,6 +32,7 @@ export function TaskDetail({ id }: { id: string }) {
       .then((result) => {
         setTask(result.task);
         setDraftDetails(result.task.details);
+        setDraftTitle(result.task.title);
         setError(null);
       })
       .catch((err: unknown) => {
@@ -141,10 +144,49 @@ export function TaskDetail({ id }: { id: string }) {
       </div>
 
       <header className="page-head" style={{ marginBottom: 20 }}>
-        <div style={{ minWidth: 0 }}>
-          <h1 className="page-title" style={{ fontSize: 23 }}>
-            {task.title}
-          </h1>
+        <div style={{ minWidth: 0, flex: 1 }}>
+          {editingTitle ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <Input
+                aria-label="Task title"
+                value={draftTitle}
+                maxLength={200}
+                autoFocus
+                onChange={(event) => setDraftTitle(event.target.value)}
+                style={{ fontSize: 18, fontWeight: 600, maxWidth: 460 }}
+              />
+              <Button
+                size="sm"
+                variant="primary"
+                loading={busy}
+                onClick={async () => {
+                  if (draftTitle.trim().length === 0) return;
+                  await patch({ title: draftTitle.trim() }, "Renamed.");
+                  setEditingTitle(false);
+                }}
+              >
+                Save
+              </Button>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setEditingTitle(false);
+                  setDraftTitle(task.title);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          ) : (
+            <div className="row-between" style={{ justifyContent: "flex-start", gap: 10 }}>
+              <h1 className="page-title" style={{ fontSize: 23 }}>
+                {task.title}
+              </h1>
+              <Button size="sm" variant="quiet" onClick={() => setEditingTitle(true)}>
+                Rename
+              </Button>
+            </div>
+          )}
           <p className="page-sub">
             Added {relativeTime(task.created_at)}
             {task.completed_at ? ` · finished ${relativeTime(task.completed_at)}` : ""}

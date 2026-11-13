@@ -25,6 +25,14 @@ type identity struct {
 
 func (s *Server) withIdentity(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Helper calls authenticate with an agent key, never a browser cookie.
+		// Resolving a session for them would call the identity provider on
+		// every poll and is meaningless.
+		if strings.HasPrefix(r.URL.Path, "/api/runner/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		token := s.sessionToken(r)
 		if token == "" {
 			next.ServeHTTP(w, r)
@@ -134,6 +142,13 @@ func (s *Server) clearSession(w http.ResponseWriter) {
 
 func (s *Server) withCSRF(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Helpers authenticate with a bearer key, never a cookie, so CSRF does
+		// not apply and they should not receive a browser cookie.
+		if strings.HasPrefix(r.URL.Path, "/api/runner/") {
+			next.ServeHTTP(w, r)
+			return
+		}
+
 		csrf, err := r.Cookie(csrfCookie)
 		if err != nil || csrf.Value == "" {
 			csrf = &http.Cookie{
@@ -146,13 +161,6 @@ func (s *Server) withCSRF(next http.Handler) http.Handler {
 				MaxAge:   30 * 24 * 60 * 60,
 			}
 			http.SetCookie(w, csrf)
-		}
-
-		// Helpers authenticate with a bearer key, never a cookie, so CSRF does
-		// not apply to the runner API.
-		if strings.HasPrefix(r.URL.Path, "/api/runner/") {
-			next.ServeHTTP(w, r)
-			return
 		}
 
 		switch r.Method {
@@ -171,12 +179,20 @@ func (s *Server) withCSRF(next http.Handler) http.Handler {
 	})
 }
 
-func securityHeaders(next http.Handler) http.Handler {
+func (s *Server) securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("X-Frame-Options", "DENY")
 		w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		w.Header().Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		w.Header().Set("Cross-Origin-Opener-Policy", "same-origin")
+		if s.cfg.SecureCookies {
+			w.Header().Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
+		}
+		if strings.HasPrefix(r.URL.Path, "/api/") {
+			// Every API response is personal and short-lived.
+			w.Header().Set("Cache-Control", "no-store")
+		}
 		w.Header().Set("Content-Security-Policy",
 			"default-src 'self'; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; frame-ancestors 'none'")
 		next.ServeHTTP(w, r)
@@ -273,7 +289,18 @@ func (l *limiter) allow(key string) bool {
 	return true
 }
 
-func clientIP(r *http.Request) string {
+// clientIP is the address the identity provider should rate-limit. Only trust
+// X-Forwarded-For when the operator has explicitly said a proxy is in front.
+func (s *Server) clientIP(r *http.Request) string {
+	if s.cfg.TrustProxy {
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			first := strings.TrimSpace(strings.Split(forwarded, ",")[0])
+			if first != "" {
+				return first
+			}
+		}
+	}
+
 	host, _, err := net.SplitHostPort(r.RemoteAddr)
 	if err != nil {
 		return r.RemoteAddr

@@ -249,6 +249,23 @@ per-IP rate limits see real visitors. `Dockerfile` builds the same binary.
 
 ---
 
+## What it would take to "run a whole company"
+
+Crew runs work. It does not yet run an organisation. The gap, in order of value:
+
+| Missing | What it unlocks |
+|---|---|
+| Shared workspace with roles | More than one human; assistants and reviewers |
+| Routines (scheduled tasks) | The company keeps moving while you sleep |
+| Goals and delegation between helpers | A helper can hand work to another helper |
+| Budgets and cost per helper | Autonomy with a brake |
+| Integrations (GitHub, Slack, email) | Work arrives and leaves where people already are |
+| Notifications | You learn about a review without opening the tab |
+| Model choice per helper | Cost and quality tuned per job |
+
+None of these need a rewrite: memberships, `routines`, `budgets`, and `goals` are tables next
+to the existing ones, and the runner protocol already has everything a scheduler needs.
+
 ## What Crew deliberately does not do (yet)
 
 - **Teams.** One workspace per person. Sharing needs a membership table and per-company scoping.

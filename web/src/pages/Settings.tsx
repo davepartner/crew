@@ -15,10 +15,12 @@ export function Settings({
   user,
   theme,
   onTheme,
+  onUser,
 }: {
   user: User;
   theme: string;
   onTheme: (theme: string) => void;
+  onUser: (user: User) => void;
 }) {
   const { push } = useToast();
   const [tab, setTab] = useState("profile");
@@ -42,7 +44,8 @@ export function Settings({
 
     setBusy(true);
     try {
-      await api.updateMe(name.trim());
+      const result = await api.updateMe(name.trim());
+      onUser(result.user);
       push("Name saved.");
     } catch (err) {
       push(err instanceof ApiError ? err.message : "We couldn't save that.", "error");
@@ -55,8 +58,12 @@ export function Settings({
     setBusy(true);
     try {
       await api.revokeSession(session.id);
-      setSessions((current) => (current ?? []).filter((item) => item.id !== session.id));
       push("That device is signed out.");
+
+      // Refreshing proves whether this browser was the one revoked; a 401 here
+      // sends the app back to sign-in instead of leaving a dead session on screen.
+      const result = await api.sessions();
+      setSessions(result.sessions);
     } catch (err) {
       push(err instanceof ApiError ? err.message : "We couldn't sign that device out.", "error");
     } finally {

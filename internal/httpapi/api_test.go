@@ -24,11 +24,12 @@ import (
 // fakePaytrackify stands in for paytrackify.com so the whole sign-in and work
 // loop can be tested without email or a second server.
 type fakePaytrackify struct {
-	mu     sync.Mutex
-	nextID int
-	emails map[string]string // requestId -> email
-	tokens map[string]string // token -> email
-	names  map[string]string // email -> display name
+	mu      sync.Mutex
+	nextID  int
+	emails  map[string]string // requestId -> email
+	tokens  map[string]string // token -> email
+	names   map[string]string // email -> display name
+	meCalls int
 }
 
 func newFakePaytrackify() *fakePaytrackify {
@@ -100,6 +101,7 @@ func (f *fakePaytrackify) handler() http.Handler {
 		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
 
 		f.mu.Lock()
+		f.meCalls++
 		email, ok := f.tokens[token]
 		name := f.names[email]
 		f.mu.Unlock()
@@ -148,6 +150,10 @@ func (f *fakePaytrackify) handler() http.Handler {
 	})
 
 	mux.HandleFunc("DELETE /api/auth/sessions/{id}", func(w http.ResponseWriter, r *http.Request) {
+		token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		f.mu.Lock()
+		delete(f.tokens, token)
+		f.mu.Unlock()
 		writeTestJSON(w, 200, map[string]any{"ok": true})
 	})
 
@@ -162,12 +168,14 @@ func writeTestJSON(w http.ResponseWriter, status int, payload any) {
 
 type harness struct {
 	base string
+	fake *fakePaytrackify
 }
 
 func newHarness(t *testing.T) *harness {
 	t.Helper()
 
-	upstream := httptest.NewServer(newFakePaytrackify().handler())
+	fake := newFakePaytrackify()
+	upstream := httptest.NewServer(fake.handler())
 	t.Cleanup(upstream.Close)
 
 	st, err := store.Open(filepath.Join(t.TempDir(), "crew.db"))
@@ -190,7 +198,7 @@ func newHarness(t *testing.T) *harness {
 	base := httptest.NewServer(server.Handler())
 	t.Cleanup(base.Close)
 
-	return &harness{base: base.URL}
+	return &harness{base: base.URL, fake: fake}
 }
 
 type browser struct {
@@ -480,6 +488,32 @@ func TestHelperKeyIsRejectedWhenWrong(t *testing.T) {
 	}
 }
 
+func TestRevokingTheCurrentSessionSignsOutImmediately(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var sessions struct {
+		Sessions []map[string]any `json:"sessions"`
+	}
+	b.do(t, http.MethodGet, "/api/me/sessions", nil, &sessions)
+	if len(sessions.Sessions) == 0 {
+		t.Fatal("expected a session")
+	}
+
+	id, _ := sessions.Sessions[0]["id"].(string)
+	status, raw := b.do(t, http.MethodDelete, "/api/me/sessions/"+id, nil, nil)
+	if status != 200 {
+		t.Fatalf("revoke: %d %s", status, raw)
+	}
+
+	// The identity cache must not keep the revoked session alive.
+	status, _ = b.do(t, http.MethodGet, "/api/me", nil, nil)
+	if status != 401 {
+		t.Fatalf("expected 401 right after revoking this session, got %d", status)
+	}
+}
+
 func TestLogoutRecordsAndRevokes(t *testing.T) {
 	h := newHarness(t)
 	b := h.newBrowser(t)
@@ -511,5 +545,91 @@ func TestDeleteMyDataRemovesTheWorkspace(t *testing.T) {
 	status, _ = b.do(t, http.MethodGet, "/api/me", nil, nil)
 	if status != 401 {
 		t.Fatalf("expected 401 after deleting data, got %d", status)
+	}
+}
+
+func (f *fakePaytrackify) meCallCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.meCalls
+}
+
+func TestRunnerTrafficDoesNotHitTheIdentityProvider(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var created struct {
+		Agent  map[string]any `json:"agent"`
+		APIKey string         `json:"apiKey"`
+	}
+	b.do(t, http.MethodPost, "/api/agents", map[string]string{"name": "Ada", "role": "Writer"}, &created)
+
+	before := h.fake.meCallCount()
+
+	req, _ := http.NewRequest(http.MethodPost, h.base+"/api/runner/claim", nil)
+	req.Header.Set("Authorization", "Bearer "+created.APIKey)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	resp.Body.Close()
+
+	if after := h.fake.meCallCount(); after != before {
+		t.Fatalf("runner traffic hit /api/auth/me: before=%d after=%d", before, after)
+	}
+}
+
+func TestExportIncludesCommentsAndIsNotCached(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var created struct {
+		Task map[string]any `json:"task"`
+	}
+	b.do(t, http.MethodPost, "/api/tasks", map[string]string{"title": "Keep notes"}, &created)
+	taskID, _ := created.Task["id"].(string)
+	b.do(t, http.MethodPost, "/api/tasks/"+taskID+"/comments", map[string]string{"body": "A note worth keeping"}, nil)
+
+	req, _ := http.NewRequest(http.MethodGet, h.base+"/api/me/export", nil)
+	for _, cookie := range b.jar.Cookies(b.baseURL(t)) {
+		req.AddCookie(cookie)
+	}
+
+	resp, err := b.http.Do(req)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if got := resp.Header.Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("expected no-store, got %q", got)
+	}
+
+	var body struct {
+		Comments []map[string]any `json:"comments"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
+		t.Fatalf("decode export: %v", err)
+	}
+
+	if len(body.Comments) != 1 {
+		t.Fatalf("expected the note in the export, got %d", len(body.Comments))
+	}
+}
+
+func TestMissingAssetIsNotFound(t *testing.T) {
+	h := newHarness(t)
+
+	resp, err := http.Get(h.base + "/assets/does-not-exist.js")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusNotFound {
+		t.Fatalf("expected 404 for a missing asset, got %d", resp.StatusCode)
 	}
 }

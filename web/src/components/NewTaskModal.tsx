@@ -1,15 +1,18 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, type Agent, type Task } from "../api";
+import { Link } from "../router";
 import { Button, Field, Input, Modal, Select, Textarea, useToast } from "../ui";
 
 export function NewTaskModal({
   open,
   onClose,
   onCreated,
+  defaultAgentId = "",
 }: {
   open: boolean;
   onClose: () => void;
   onCreated?: (task: Task) => void;
+  defaultAgentId?: string;
 }) {
   const { push } = useToast();
   const [agents, setAgents] = useState<Agent[]>([]);
@@ -23,14 +26,14 @@ export function NewTaskModal({
     if (!open) return;
     setTitle("");
     setDetails("");
-    setAgentId("");
+    setAgentId(defaultAgentId);
     setError(null);
 
     api
       .agents()
       .then((result) => setAgents(result.agents))
       .catch(() => setAgents([]));
-  }, [open]);
+  }, [open, defaultAgentId]);
 
   async function submit(event: React.FormEvent) {
     event.preventDefault();
@@ -102,6 +105,15 @@ export function NewTaskModal({
             ))}
           </Select>
         </Field>
+
+        {agents.length === 0 ? (
+          <p className="hint mb-16">
+            <Link to="/helpers" onClick={onClose}>
+              Add a helper
+            </Link>{" "}
+            and you can hand this over right away.
+          </p>
+        ) : null}
 
         <div className="modal-actions">
           <Button type="button" onClick={onClose} disabled={busy}>

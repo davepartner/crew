@@ -46,7 +46,7 @@ and 390×844, light and dark.
 | Contrast ≥ 4.5:1 | Pass | Body ink 15:1, muted 5.1:1, faint raised to 4.6:1 in light and 4.5:1 in dark. |
 | Reduced motion | Pass | All animation and transitions collapse under `prefers-reduced-motion`. |
 | Responsive | Pass | 390 / 768 / 1280 breakpoints; sidebar becomes a drawer under 920 px. |
-| Semantic + ARIA | Pass | `nav`, `main`, `form`, `label`, `fieldset`; `aria-current`, `aria-pressed`, `aria-live` for errors, `aria-modal` dialogs, Esc closes. |
+| Semantic + ARIA | Pass | `nav`, `main`, `form`, `label`, `fieldset`; `aria-current`, `aria-pressed`, `aria-live` for errors, `aria-modal` dialogs with a Tab trap, Esc closes. |
 | No stack traces | Pass | Every error is a sentence with a next step. |
 
 ## Account surfaces
@@ -65,6 +65,8 @@ and 390×844, light and dark.
   links inside copy, not controls; primary navigation and actions meet the target.
 - The helper key uses `window.confirm` for rotation. It is a native, focus-trapped dialog and
   accessible, but a custom modal would match the rest of the product better.
+- Toasts sit bottom-right and can cover the activity card for their four-second life. They are
+  capped at three and never block a control.
 
 ## Trace
 

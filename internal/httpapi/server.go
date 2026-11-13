@@ -47,7 +47,7 @@ func (s *Server) Handler() http.Handler {
 	handler = s.withIdentity(handler)
 	handler = s.withCSRF(handler)
 	handler = s.withLogging(handler)
-	handler = securityHeaders(handler)
+	handler = s.securityHeaders(handler)
 	handler = withRecovery(handler)
 
 	return handler
@@ -108,11 +108,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	status := "ok"
+	code := http.StatusOK
 	if err := s.store.Ping(r.Context()); err != nil {
 		status = "degraded"
+		code = http.StatusServiceUnavailable
 	}
 
-	writeJSON(w, http.StatusOK, map[string]any{
+	writeJSON(w, code, map[string]any{
 		"ok":     status == "ok",
 		"status": status,
 		"env":    s.cfg.Env,

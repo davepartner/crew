@@ -16,6 +16,7 @@ type Config struct {
 	PaytrackifyTime time.Duration
 	SessionCacheTTL time.Duration
 	SecureCookies   bool
+	TrustProxy      bool
 	WebDir          string
 	Env             string
 	ServiceName     string
@@ -29,6 +30,7 @@ func Load() Config {
 		PaytrackifyTime: envDuration("PAYTRACKIFY_TIMEOUT", 8*time.Second),
 		SessionCacheTTL: envDuration("CREW_SESSION_CACHE_TTL", 60*time.Second),
 		SecureCookies:   envBool("CREW_SECURE_COOKIES", false),
+		TrustProxy:      envBool("CREW_TRUST_PROXY", false),
 		WebDir:          env("CREW_WEB_DIR", ""),
 		Env:             env("CREW_ENV", "development"),
 		ServiceName:     env("CREW_NAME", "Crew"),

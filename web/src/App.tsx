@@ -36,6 +36,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const onUnauthorized = () => {
+      window.sessionStorage.setItem("crew:signed-out", "1");
+      setUser(null);
+    };
+
+    window.addEventListener("crew:unauthorized", onUnauthorized);
+    return () => window.removeEventListener("crew:unauthorized", onUnauthorized);
+  }, []);
+
+  useEffect(() => {
     const media = window.matchMedia("(prefers-color-scheme: dark)");
 
     const apply = () => {
@@ -55,7 +65,13 @@ export default function App() {
 
   return (
     <ToastProvider>
-      <Shell user={user} theme={theme} onTheme={setTheme} onSignedOut={() => setUser(null)} />
+      <Shell
+        user={user}
+        theme={theme}
+        onTheme={setTheme}
+        onUser={setUser}
+        onSignedOut={() => setUser(null)}
+      />
     </ToastProvider>
   );
 }
@@ -87,11 +103,13 @@ function Shell({
   user,
   theme,
   onTheme,
+  onUser,
   onSignedOut,
 }: {
   user: User;
   theme: string;
   onTheme: (theme: string) => void;
+  onUser: (user: User) => void;
   onSignedOut: () => void;
 }) {
   const path = usePath();
@@ -241,7 +259,7 @@ function Shell({
         </header>
 
         <main className="content">
-          <Route path={path} user={user} theme={theme} onTheme={onTheme} />
+          <Route path={path} user={user} theme={theme} onTheme={onTheme} onUser={onUser} />
         </main>
       </div>
 
@@ -262,17 +280,19 @@ function Route({
   user,
   theme,
   onTheme,
+  onUser,
 }: {
   path: string;
   user: User;
   theme: string;
   onTheme: (theme: string) => void;
+  onUser: (user: User) => void;
 }) {
   if (path === "/") return <Home />;
   if (path === "/tasks") return <Tasks />;
   if (path === "/helpers") return <Helpers />;
   if (path === "/activity") return <ActivityPage />;
-  if (path === "/settings") return <Settings user={user} theme={theme} onTheme={onTheme} />;
+  if (path === "/settings") return <Settings user={user} theme={theme} onTheme={onTheme} onUser={onUser} />;
   if (path === "/privacy") return <Privacy />;
   if (path === "/terms") return <Terms />;
   if (path === "/support") return <Support />;

@@ -3,6 +3,7 @@ import { api, ApiError, type Task, type TaskStatus } from "../api";
 import { NewTaskModal } from "../components/NewTaskModal";
 import { TaskRow } from "../components/rows";
 import { Button, EmptyState, Skeleton } from "../ui";
+import { navigate } from "../router";
 
 const filters: { id: "" | TaskStatus; label: string }[] = [
   { id: "", label: "All" },
@@ -52,9 +53,12 @@ export function Tasks() {
           <h1 className="page-title">Tasks</h1>
           <p className="page-sub">Everything you've asked for, and where it stands.</p>
         </div>
-        <Button variant="primary" onClick={() => setNewTaskOpen(true)}>
-          Add a task
-        </Button>
+        <div style={{ display: "flex", gap: 8 }}>
+          <Button onClick={() => navigate("/routines")}>Routines</Button>
+          <Button variant="primary" onClick={() => setNewTaskOpen(true)}>
+            Add a task
+          </Button>
+        </div>
       </header>
 
       <div className="tabs" role="group" aria-label="Filter tasks">

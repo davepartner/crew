@@ -28,6 +28,8 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 | Companies | Unlimited per person, each with its own helpers, tasks and activity |
 | Presets | 66 business types across 11 categories, each with a 3-person team and 3 tasks |
 | Skills | 53 marketing skills (MIT) from Corey Haines' marketingskills, attached per helper |
+| Routines | Daily, weekday, weekly or monthly recurring tasks |
+| Goals | Numeric goals with progress, due dates and completion |
 | Teardowns | Reverse Engineer Marketing harness (MIT) with 10 channel playbooks |
 | Frontend | React 19 + TypeScript + Vite (no UI framework) |
 | Sign-in | Passwordless email OTP via PayTrackify (`htdocs/email-finance`) |
@@ -233,10 +235,12 @@ covered by `tests/Feature/Api/OtpAuthTest.php`:
 
 ```
 users      (id, external_id, email, name, created_at)
-companies  (id, user_id, name, business_key, website, support_email, description, audience, tone)
+companies  (id, user_id, name, business_key, website, support_email, description, audience, tone, monthly_task_limit)
 provider_keys (id, user_id, provider, key_cipher, last4)
 agents     (id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, skills JSON, api_key_hash, last_seen_at)
 tasks      (id, user_id, company_id, title, details, status, agent_id, created_at, updated_at, completed_at)
+routines   (id, user_id, company_id, title, details, agent_id, cadence, enabled, next_run_at, last_run_at)
+goals      (id, user_id, company_id, title, target, current, due_date, completed_at)
 comments   (id, task_id, author_type, author_name, body, created_at)
 activity   (id, user_id, kind, message, task_id, agent_id, created_at)
 ```
@@ -280,6 +284,10 @@ row-level security (see `ARCHITECTURE.md`).
 | `POST` | `/api/marketing/analyze` | session | Fetch a site, run a teardown, save the report |
 | `PUT/DELETE` | `/api/providers/{key}` | session | Save / remove an encrypted key |
 | `POST` | `/api/providers/{key}/test` | session | Live key check |
+| `GET/POST` | `/api/routines` | session | List / schedule recurring tasks |
+| `PATCH/DELETE` | `/api/routines/{id}` | session | Pause, edit or delete a routine |
+| `GET/POST` | `/api/goals` | session | List / add company goals |
+| `PATCH/DELETE` | `/api/goals/{id}` | session | Update progress or remove a goal |
 | `GET/POST` | `/api/agents` | session | List / add helpers |
 | `GET/PATCH/DELETE` | `/api/agents/{id}` | session | Manage a helper |
 | `POST` | `/api/agents/{id}/rotate-key` | session | New connection key |
@@ -332,15 +340,15 @@ Crew runs work. It does not yet run an organisation. The gap, in order of value:
 | Missing | What it unlocks |
 |---|---|
 | Shared workspace with roles | More than one human; assistants and reviewers |
-| Routines (scheduled tasks) | The company keeps moving while you sleep |
-| Goals and delegation between helpers | A helper can hand work to another helper |
-| Budgets and cost per helper | Autonomy with a brake |
+| Delegation between helpers | A helper can hand work to another helper |
+| Cost budgets (tokens and spend) | Autonomy with a real brake, not just a task cap |
 | Integrations (GitHub, Slack, email) | Work arrives and leaves where people already are |
 | Notifications | You learn about a review without opening the tab |
-| Model choice per helper | Cost and quality tuned per job |
+| Mobile app | The same API, in your pocket |
 
-None of these need a rewrite: memberships, `routines`, `budgets`, and `goals` are tables next
-to the existing ones, and the runner protocol already has everything a scheduler needs.
+Routines, goals and a monthly task budget are in. Memberships, cost budgets and delegation are
+tables and endpoints next to the existing ones; the runner protocol already has what a
+scheduler needs.
 
 ## What Crew deliberately does not do (yet)
 

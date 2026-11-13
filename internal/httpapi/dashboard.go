@@ -36,6 +36,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	goals, err := s.store.ListGoals(r.Context(), company.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "We couldn't load your goals. Please refresh.")
+		return
+	}
+
 	counts, err := s.store.StatusCounts(r.Context(), company.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load your dashboard. Please refresh.")
@@ -103,6 +109,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"upNext":   upNext,
 		"agents":   views,
 		"activity": activity,
+		"goals":    goals,
 	})
 }
 

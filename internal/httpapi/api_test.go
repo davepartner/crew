@@ -881,3 +881,97 @@ func TestMarketingWithoutAKeyIsAConflict(t *testing.T) {
 		t.Fatalf("missing code: %s", raw)
 	}
 }
+
+func TestMonthlyTaskBudgetAndRoutinesAPI(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var created struct {
+		Company map[string]any `json:"company"`
+	}
+	status, raw := b.do(t, http.MethodPost, "/api/companies", map[string]any{
+		"name": "Budget Co", "businessKey": "custom", "monthlyTaskLimit": 1, "createTeam": false,
+	}, &created)
+	if status != 201 {
+		t.Fatalf("company: %d %s", status, raw)
+	}
+	b.company, _ = created.Company["id"].(string)
+
+	if status, raw := b.do(t, http.MethodPost, "/api/tasks", map[string]string{"title": "First"}, nil); status != 201 {
+		t.Fatalf("first task: %d %s", status, raw)
+	}
+	status, raw = b.do(t, http.MethodPost, "/api/tasks", map[string]string{"title": "Second"}, nil)
+	if status != 422 || !strings.Contains(raw, "monthly task budget") {
+		t.Fatalf("budget not enforced: %d %s", status, raw)
+	}
+
+	var routine struct {
+		Routine map[string]any `json:"routine"`
+	}
+	status, raw = b.do(t, http.MethodPost, "/api/routines", map[string]any{
+		"title": "Weekly review", "cadence": "weekly",
+	}, &routine)
+	if status != 201 {
+		t.Fatalf("routine: %d %s", status, raw)
+	}
+	routineID, _ := routine.Routine["id"].(string)
+
+	var list struct {
+		Routines []map[string]any `json:"routines"`
+	}
+	if status, raw := b.do(t, http.MethodGet, "/api/routines", nil, &list); status != 200 || len(list.Routines) != 1 {
+		t.Fatalf("list: %d %s %d", status, raw, len(list.Routines))
+	}
+
+	status, raw = b.do(t, http.MethodPatch, "/api/routines/"+routineID, map[string]any{"enabled": false}, nil)
+	if status != 200 {
+		t.Fatalf("disable: %d %s", status, raw)
+	}
+	if status, _ := b.do(t, http.MethodDelete, "/api/routines/"+routineID, nil, nil); status != 200 {
+		t.Fatalf("delete: %d", status)
+	}
+}
+
+func TestGoalsProgressAndCompletion(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var created struct {
+		Goal map[string]any `json:"goal"`
+	}
+	status, raw := b.do(t, http.MethodPost, "/api/goals", map[string]any{
+		"title": "Book 2 demos", "target": 2, "dueDate": "2027-03-31",
+	}, &created)
+	if status != 201 {
+		t.Fatalf("create goal: %d %s", status, raw)
+	}
+	goalID, _ := created.Goal["id"].(string)
+
+	var updated struct {
+		Goal map[string]any `json:"goal"`
+	}
+	if status, raw := b.do(t, http.MethodPatch, "/api/goals/"+goalID, map[string]any{"current": 1}, &updated); status != 200 {
+		t.Fatalf("step goal: %d %s", status, raw)
+	}
+	if updated.Goal["current"] != float64(1) {
+		t.Fatalf("current: %v", updated.Goal["current"])
+	}
+
+	b.do(t, http.MethodPatch, "/api/goals/"+goalID, map[string]any{"current": 2}, &updated)
+	if updated.Goal["completed_at"] == nil {
+		t.Fatalf("goal should be complete: %v", updated.Goal)
+	}
+
+	var dashboard struct {
+		Goals []map[string]any `json:"goals"`
+	}
+	if status, raw := b.do(t, http.MethodGet, "/api/dashboard", nil, &dashboard); status != 200 || len(dashboard.Goals) != 1 {
+		t.Fatalf("dashboard goals: %d %s %d", status, raw, len(dashboard.Goals))
+	}
+
+	if status, _ := b.do(t, http.MethodDelete, "/api/goals/"+goalID, nil, nil); status != 200 {
+		t.Fatalf("delete goal: %d", status)
+	}
+}

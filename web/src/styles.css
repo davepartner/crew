@@ -917,3 +917,77 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 640px) {
   .skill-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+
+/* ---------- routines ---------- */
+
+.routine-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+  min-height: 36px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.switch input { accent-color: var(--accent); width: 16px; height: 16px; }
+
+@media (max-width: 620px) {
+  .routine-row { flex-direction: column; }
+}
+
+
+/* ---------- goals ---------- */
+
+.goal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.goal-progress {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  overflow: hidden;
+  margin-top: 12px;
+}
+.goal-progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 180ms ease;
+}
+.goal-done .goal-progress span { background: var(--ok); }
+
+.goal-remove {
+  border: none;
+  background: none;
+  color: var(--muted);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 6px;
+}
+.goal-remove:hover { color: var(--danger); background: var(--surface-2); }
+
+@media (max-width: 900px) {
+  .goal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .goal-grid { grid-template-columns: minmax(0, 1fr); }
+}

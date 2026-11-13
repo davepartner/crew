@@ -44,6 +44,7 @@ export function Settings({
   const [description, setDescription] = useState(company.description);
   const [audience, setAudience] = useState(company.audience);
   const [tone, setTone] = useState(company.tone || "Friendly");
+  const [monthlyLimit, setMonthlyLimit] = useState(String(company.monthly_task_limit ?? 0));
 
   useEffect(() => {
     setCompanyName(company.name);
@@ -52,6 +53,7 @@ export function Settings({
     setDescription(company.description);
     setAudience(company.audience);
     setTone(company.tone || "Friendly");
+    setMonthlyLimit(String(company.monthly_task_limit ?? 0));
   }, [company]);
 
   useEffect(() => {
@@ -83,6 +85,7 @@ export function Settings({
         description: description.trim(),
         audience: audience.trim(),
         tone,
+        monthlyTaskLimit: Math.max(0, Number(monthlyLimit) || 0),
       });
       onCompany(result.company);
       push("Company saved.");
@@ -225,6 +228,21 @@ export function Settings({
                   </option>
                 ))}
               </Select>
+            </Field>
+
+            <Field
+              label="Monthly task budget"
+              hint="0 means no limit. Counts every task created this month, including routines."
+              htmlFor="settings-company-limit"
+            >
+              <Input
+                id="settings-company-limit"
+                type="number"
+                min={0}
+                max={100000}
+                value={monthlyLimit}
+                onChange={(event) => setMonthlyLimit(event.target.value)}
+              />
             </Field>
 
             <Button type="submit" variant="primary" loading={busy}>

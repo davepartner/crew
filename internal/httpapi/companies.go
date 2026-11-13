@@ -17,14 +17,15 @@ import (
 var supportEmailPattern = regexp.MustCompile(`^[^\s@]+@[^\s@]+\.[^\s@]{2,}$`)
 
 type companyInput struct {
-	Name         string `json:"name"`
-	BusinessKey  string `json:"businessKey"`
-	Website      string `json:"website"`
-	SupportEmail string `json:"supportEmail"`
-	Description  string `json:"description"`
-	Audience     string `json:"audience"`
-	Tone         string `json:"tone"`
-	CreateTeam   *bool  `json:"createTeam"`
+	Name             string `json:"name"`
+	BusinessKey      string `json:"businessKey"`
+	Website          string `json:"website"`
+	SupportEmail     string `json:"supportEmail"`
+	Description      string `json:"description"`
+	Audience         string `json:"audience"`
+	Tone             string `json:"tone"`
+	MonthlyTaskLimit *int   `json:"monthlyTaskLimit"`
+	CreateTeam       *bool  `json:"createTeam"`
 }
 
 func (s *Server) handleListCompanies(w http.ResponseWriter, r *http.Request) {
@@ -76,14 +77,26 @@ func (s *Server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 		businessKey = "custom"
 	}
 
+	limit := 0
+	if body.MonthlyTaskLimit != nil {
+		limit = *body.MonthlyTaskLimit
+	}
+	if limit < 0 {
+		limit = 0
+	}
+	if limit > 100000 {
+		limit = 100000
+	}
+
 	company, err := s.store.CreateCompany(r.Context(), id.UserID, store.CompanyInput{
-		Name:         name,
-		BusinessKey:  businessKey,
-		Website:      website,
-		SupportEmail: support,
-		Description:  trim(body.Description, 2000),
-		Audience:     trim(body.Audience, 200),
-		Tone:         trim(body.Tone, 40),
+		Name:             name,
+		BusinessKey:      businessKey,
+		Website:          website,
+		SupportEmail:     support,
+		Description:      trim(body.Description, 2000),
+		Audience:         trim(body.Audience, 200),
+		Tone:             trim(body.Tone, 40),
+		MonthlyTaskLimit: limit,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't create that company. Please try again.")
@@ -189,14 +202,26 @@ func (s *Server) handleUpdateCompany(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	limit := current.MonthlyTaskLimit
+	if body.MonthlyTaskLimit != nil {
+		limit = *body.MonthlyTaskLimit
+		if limit < 0 {
+			limit = 0
+		}
+		if limit > 100000 {
+			limit = 100000
+		}
+	}
+
 	company, err := s.store.UpdateCompany(r.Context(), id.UserID, current.ID, store.CompanyInput{
-		Name:         name,
-		BusinessKey:  current.BusinessKey,
-		Website:      website,
-		SupportEmail: support,
-		Description:  trim(body.Description, 2000),
-		Audience:     trim(body.Audience, 200),
-		Tone:         trim(body.Tone, 40),
+		Name:             name,
+		BusinessKey:      current.BusinessKey,
+		Website:          website,
+		SupportEmail:     support,
+		Description:      trim(body.Description, 2000),
+		Audience:         trim(body.Audience, 200),
+		Tone:             trim(body.Tone, 40),
+		MonthlyTaskLimit: limit,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't save that company. Please try again.")

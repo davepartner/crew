@@ -108,6 +108,16 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/agents/{id}", s.requireUser(s.requireCompany(s.handleDeleteAgent)))
 	mux.HandleFunc("POST /api/agents/{id}/rotate-key", s.requireUser(s.requireCompany(s.handleRotateAgentKey)))
 
+	mux.HandleFunc("GET /api/goals", s.requireUser(s.requireCompany(s.handleListGoals)))
+	mux.HandleFunc("POST /api/goals", s.requireUser(s.requireCompany(s.handleCreateGoal)))
+	mux.HandleFunc("PATCH /api/goals/{id}", s.requireUser(s.requireCompany(s.handleUpdateGoal)))
+	mux.HandleFunc("DELETE /api/goals/{id}", s.requireUser(s.requireCompany(s.handleDeleteGoal)))
+
+	mux.HandleFunc("GET /api/routines", s.requireUser(s.requireCompany(s.handleListRoutines)))
+	mux.HandleFunc("POST /api/routines", s.requireUser(s.requireCompany(s.handleCreateRoutine)))
+	mux.HandleFunc("PATCH /api/routines/{id}", s.requireUser(s.requireCompany(s.handleUpdateRoutine)))
+	mux.HandleFunc("DELETE /api/routines/{id}", s.requireUser(s.requireCompany(s.handleDeleteRoutine)))
+
 	mux.HandleFunc("GET /api/tasks", s.requireUser(s.requireCompany(s.handleListTasks)))
 	mux.HandleFunc("POST /api/tasks", s.requireUser(s.requireCompany(s.handleCreateTask)))
 	mux.HandleFunc("GET /api/tasks/{id}", s.requireUser(s.requireCompany(s.handleGetTask)))

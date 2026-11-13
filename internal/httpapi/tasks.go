@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/davepartner/crew/internal/store"
@@ -63,6 +64,10 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	task, err := s.store.CreateTask(r.Context(), id.UserID, company.ID, title, trim(body.Details, 8000), agentID)
 	if err != nil {
+		if errors.Is(err, store.ErrTaskBudget) {
+			writeError(w, http.StatusUnprocessableEntity, "This company has used its monthly task budget. Raise it in Settings → Company.")
+			return
+		}
 		writeError(w, http.StatusInternalServerError, "We couldn't save that task. Please try again.")
 		return
 	}

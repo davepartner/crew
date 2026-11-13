@@ -8,6 +8,7 @@ import { TaskDetail } from "./pages/TaskDetail";
 import { Helpers } from "./pages/Helpers";
 import { HelperDetail } from "./pages/HelperDetail";
 import { Marketing } from "./pages/Marketing";
+import { Routines } from "./pages/Routines";
 import { ActivityPage } from "./pages/Activity";
 import { Settings } from "./pages/Settings";
 import { Privacy, Terms, Support, NotFound } from "./pages/Legal";
@@ -448,6 +449,7 @@ function Route({
   if (path === "/tasks") return <Tasks />;
   if (path === "/helpers") return <Helpers />;
   if (path === "/marketing") return <Marketing />;
+  if (path === "/routines") return <Routines />;
   if (path === "/activity") return <ActivityPage />;
   if (path === "/settings")
     return (

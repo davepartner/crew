@@ -69,6 +69,14 @@ and 390×844, light and dark.
 - If no model key exists, the form says so before the person tries; the run button is disabled.
 - The report renders as pre-wrapped markdown in a scrollable panel with download and task links.
 
+## Routines and goals
+
+- Routines live under Tasks (one click, no extra nav item): a list with cadence, helper, next
+  run, an on/off switch and delete.
+- The new-routine modal asks four things: title, details, cadence, helper.
+- Goals sit on Home: current/target, progress bar, due date, +1 and Finish, with a delete ×.
+- The company monthly task budget is in Settings → Company; 0 means no limit.
+
 ## Account surfaces
 
 - Company: name, website, support email, audience, description, tone.

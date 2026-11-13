@@ -7,9 +7,33 @@ export type Company = {
   description: string;
   audience: string;
   tone: string;
+  monthly_task_limit: number;
   created_at: string;
   agent_count: number;
   task_count: number;
+};
+
+export type Goal = {
+  id: string;
+  title: string;
+  target: number;
+  current: number;
+  due_date: string;
+  created_at: string;
+  completed_at: string | null;
+};
+
+export type Routine = {
+  id: string;
+  title: string;
+  details: string;
+  agent_id: string;
+  agent: Agent | null;
+  cadence: "daily" | "weekdays" | "weekly" | "monthly";
+  enabled: boolean;
+  next_run_at: string;
+  last_run_at: string | null;
+  created_at: string;
 };
 
 export type BusinessPreset = {
@@ -150,6 +174,7 @@ export type Dashboard = {
   upNext: Task[];
   agents: Agent[];
   activity: ActivityItem[];
+  goals: Goal[];
 };
 
 export class ApiError extends Error {
@@ -306,6 +331,32 @@ export const api = {
       "/api/skills",
     ),
   skill: (key: string) => request<{ ok: boolean; skill: Skill; body: string }>(`/api/skills/${key}`),
+  goals: () => request<{ ok: boolean; goals: Goal[] }>("/api/goals"),
+  createGoal: (input: { title: string; target: number; dueDate: string }) =>
+    request<{ ok: boolean; goal: Goal }>("/api/goals", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateGoal: (id: string, input: Record<string, unknown>) =>
+    request<{ ok: boolean; goal: Goal }>(`/api/goals/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteGoal: (id: string) => request<{ ok: boolean }>(`/api/goals/${id}`, { method: "DELETE" }),
+
+  routines: () => request<{ ok: boolean; routines: Routine[] }>("/api/routines"),
+  createRoutine: (input: { title: string; details: string; agentId: string; cadence: string }) =>
+    request<{ ok: boolean; routine: Routine }>("/api/routines", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateRoutine: (id: string, input: Record<string, unknown>) =>
+    request<{ ok: boolean; routine: Routine }>(`/api/routines/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteRoutine: (id: string) => request<{ ok: boolean }>(`/api/routines/${id}`, { method: "DELETE" }),
+
   analyzeMarketing: (input: { url: string; focus: string; playbook: string; agentId?: string }) =>
     request<MarketingReport>("/api/marketing/analyze", {
       method: "POST",

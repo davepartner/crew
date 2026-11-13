@@ -43,12 +43,14 @@ func main() {
 
 	server := httpapi.New(cfg, st, client, cipher)
 
+	go runRoutines(st)
+
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,
 		Handler:           server.Handler(),
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      60 * time.Second,
+		WriteTimeout:      180 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
 
@@ -69,4 +71,28 @@ func main() {
 
 	slog.Info("shutting down")
 	_ = httpServer.Shutdown(ctx)
+}
+
+// runRoutines ticks the scheduler. It runs in the server process, so a single
+// instance owns the schedule; the store's conditional update keeps a second
+// instance from double-running if one is ever added.
+func runRoutines(st *store.Store) {
+	time.Sleep(2 * time.Second)
+
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		count, err := st.RunDueRoutines(ctx, time.Now().UTC())
+		cancel()
+
+		if err != nil {
+			slog.Error("run routines", "err", err)
+		} else if count > 0 {
+			slog.Info("routines ran", "count", count)
+		}
+
+		<-ticker.C
+	}
 }

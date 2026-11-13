@@ -3,8 +3,11 @@ package store
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"time"
 )
+
+var ErrTaskBudget = errors.New("monthly task budget reached")
 
 const (
 	StatusTodo    = "todo"
@@ -52,6 +55,24 @@ type TaskPatch struct {
 }
 
 func (s *Store) CreateTask(ctx context.Context, userID, companyID, title, details, agentID string) (Task, error) {
+	var limit int
+	if err := s.db.QueryRowContext(ctx, `SELECT monthly_task_limit FROM companies WHERE id = ?`, companyID).Scan(&limit); err != nil {
+		return Task{}, err
+	}
+	if limit > 0 {
+		now := time.Now().UTC()
+		monthStart := time.Date(now.Year(), now.Month(), 1, 0, 0, 0, 0, time.UTC)
+		var used int
+		if err := s.db.QueryRowContext(ctx, `
+			SELECT COUNT(*) FROM tasks WHERE company_id = ? AND created_at >= ?`,
+			companyID, monthStart.Format(TimeFormat)).Scan(&used); err != nil {
+			return Task{}, err
+		}
+		if used >= limit {
+			return Task{}, ErrTaskBudget
+		}
+	}
+
 	now := Now()
 	id := NewID()
 

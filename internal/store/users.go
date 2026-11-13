@@ -85,6 +85,8 @@ func (s *Store) DeleteUserData(ctx context.Context, id string) error {
 		}
 		for _, stmt := range []string{
 			`DELETE FROM activity WHERE user_id = ?`,
+			`DELETE FROM routines WHERE user_id = ?`,
+			`DELETE FROM goals WHERE user_id = ?`,
 			`DELETE FROM tasks WHERE user_id = ?`,
 			`DELETE FROM agents WHERE user_id = ?`,
 			`DELETE FROM provider_keys WHERE user_id = ?`,

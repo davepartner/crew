@@ -97,6 +97,14 @@ export type Member = {
 
 export type Invite = { id: string; email: string; role: string; created_at: string };
 
+export type Announcement = {
+  id: number;
+  title: string;
+  body: string;
+  level: "info" | "success" | "warning";
+  published_at: string;
+};
+
 export type Notification = {
   id: string;
   kind: string;
@@ -412,6 +420,7 @@ export const api = {
   testProvider: (key: string) =>
     request<{ ok: boolean; message: string }>(`/api/providers/${key}/test`, { method: "POST" }),
 
+  announcements: () => request<{ ok: boolean; announcements: Announcement[] }>("/api/announcements"),
   notifications: () =>
     request<{ ok: boolean; notifications: Notification[]; unread: number }>("/api/notifications"),
   readNotification: (id: string) =>

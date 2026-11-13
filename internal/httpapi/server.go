@@ -104,6 +104,7 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 	// Work, scoped to the active company.
 	mux.HandleFunc("GET /api/dashboard", s.requireUser(s.requireCompany(s.handleDashboard)))
+	mux.HandleFunc("GET /api/announcements", s.requireUser(s.handleAnnouncements))
 	mux.HandleFunc("GET /api/notifications", s.requireUser(s.requireCompany(s.handleNotifications)))
 	mux.HandleFunc("POST /api/notifications/{id}/read", s.requireUser(s.requireCompany(s.handleReadNotification)))
 	mux.HandleFunc("POST /api/notifications/read-all", s.requireUser(s.requireCompany(s.handleReadAllNotifications)))
@@ -143,6 +144,9 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("POST /api/runner/delegate", s.requireAgent(s.handleRunnerDelegate))
 	mux.HandleFunc("POST /api/runner/tasks/{id}/progress", s.requireAgent(s.handleRunnerProgress))
 	mux.HandleFunc("POST /api/runner/tasks/{id}/complete", s.requireAgent(s.handleRunnerComplete))
+
+	mux.HandleFunc("GET /internal/stats", s.requireAdminToken(s.handleInternalStats))
+	mux.HandleFunc("GET /internal/user", s.requireAdminToken(s.handleInternalUser))
 
 	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "That endpoint does not exist.")

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type Dashboard, type Goal, type Task } from "../api";
+import { api, ApiError, type Announcement, type Dashboard, type Goal, type Task } from "../api";
 import { NewTaskModal } from "../components/NewTaskModal";
 import { TaskRow, Timeline } from "../components/rows";
 import { Link, navigate } from "../router";
@@ -11,6 +11,7 @@ export function Home() {
   const [data, setData] = useState<Dashboard | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
 
   const load = useCallback(() => {
     api
@@ -25,6 +26,24 @@ export function Home() {
   }, []);
 
   useEffect(load, [load]);
+
+  useEffect(() => {
+    api
+      .announcements()
+      .then((result) => {
+        const dismissed = new Set<string>(JSON.parse(window.localStorage.getItem("crew:announcements") ?? "[]"));
+        const next = result.announcements.find((item) => !dismissed.has(String(item.id)));
+        setAnnouncement(next ?? null);
+      })
+      .catch(() => {});
+  }, []);
+
+  function dismissAnnouncement(item: Announcement) {
+    const dismissed = new Set<string>(JSON.parse(window.localStorage.getItem("crew:announcements") ?? "[]"));
+    dismissed.add(String(item.id));
+    window.localStorage.setItem("crew:announcements", JSON.stringify(Array.from(dismissed).slice(-20)));
+    setAnnouncement(null);
+  }
 
   async function approve(task: Task) {
     try {
@@ -87,6 +106,24 @@ export function Home() {
           Add a task
         </Button>
       </header>
+
+      {announcement ? (
+        <div className={`announcement announcement-${announcement.level}`} role="status">
+          <div style={{ minWidth: 0 }}>
+            <strong>{announcement.title}</strong>
+            <p className="small" style={{ margin: "4px 0 0" }}>
+              {announcement.body}
+            </p>
+          </div>
+          <button
+            className="announcement-close"
+            onClick={() => dismissAnnouncement(announcement)}
+            aria-label="Dismiss announcement"
+          >
+            ×
+          </button>
+        </div>
+      ) : null}
 
       <GoalsSection goals={data.goals ?? []} onChanged={load} />
 

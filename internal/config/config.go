@@ -19,6 +19,7 @@ type Config struct {
 	TrustProxy         bool
 	TaskLease          time.Duration
 	SecretKey          string
+	AdminToken         string
 	PlatformProvider   string
 	PlatformModel      string
 	PlatformBaseURL    string
@@ -40,6 +41,7 @@ func Load() Config {
 		TrustProxy:         envBool("CREW_TRUST_PROXY", false),
 		TaskLease:          envDuration("CREW_TASK_LEASE", time.Hour),
 		SecretKey:          env("CREW_SECRET_KEY", ""),
+		AdminToken:         env("CREW_ADMIN_TOKEN", ""),
 		PlatformProvider:   env("CREW_PLATFORM_PROVIDER", "deepseek"),
 		PlatformModel:      env("CREW_PLATFORM_MODEL", "deepseek-chat"),
 		PlatformBaseURL:    env("CREW_PLATFORM_BASE_URL", ""),

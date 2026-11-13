@@ -216,6 +216,9 @@ export function AdviseMe() {
 
       <section className="card mt-16">
         <h2 className="section-title mb-8">{report.country.name} essentials</h2>
+        <p className="small muted" style={{ marginTop: -4 }}>
+          General guidance only — not legal, tax or investment advice.
+        </p>
         <div className="advise-country">
           <div>
             <span className="advise-label">Registration</span>

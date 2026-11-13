@@ -214,10 +214,22 @@ func (s *Store) AddComment(ctx context.Context, taskID, authorType, authorName, 
 // ClaimNextTask hands the oldest waiting task to a helper. The conditional
 // UPDATE is what makes the checkout atomic: two workers racing for the same
 // row cannot both win.
-func (s *Store) ClaimNextTask(ctx context.Context, userID, agentID string) (*Task, error) {
+func (s *Store) ClaimNextTask(ctx context.Context, userID, agentID string, lease time.Duration) (*Task, error) {
 	var taskID string
 
 	err := s.withTx(ctx, func(tx *sql.Tx) error {
+		// A helper that crashed mid-task must not hold it forever. Anything
+		// untouched for longer than the lease goes back in the queue.
+		if lease > 0 {
+			cutoff := time.Now().UTC().Add(-lease).Format(TimeFormat)
+			if _, err := tx.ExecContext(ctx, `
+				UPDATE tasks SET status = ?, updated_at = ?
+				WHERE user_id = ? AND agent_id = ? AND status = ? AND updated_at < ?`,
+				StatusTodo, Now(), userID, agentID, StatusWorking, cutoff); err != nil {
+				return err
+			}
+		}
+
 		err := tx.QueryRowContext(ctx, `
 			SELECT id FROM tasks
 			WHERE user_id = ? AND agent_id = ? AND status = ?
@@ -252,6 +264,13 @@ func (s *Store) ClaimNextTask(ctx context.Context, userID, agentID string) (*Tas
 	}
 
 	return &task, nil
+}
+
+// TouchTask extends the lease while a helper is still working.
+func (s *Store) TouchTask(ctx context.Context, userID, taskID string) error {
+	_, err := s.db.ExecContext(ctx, `
+		UPDATE tasks SET updated_at = ? WHERE user_id = ? AND id = ?`, Now(), userID, taskID)
+	return err
 }
 
 func (s *Store) StatusCounts(ctx context.Context, userID string) (map[string]int, error) {

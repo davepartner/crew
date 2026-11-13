@@ -57,7 +57,7 @@ func (s *Server) handleRunnerHeartbeat(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 	agent := agentFrom(r)
 
-	task, err := s.store.ClaimNextTask(r.Context(), agent.UserID, agent.Agent.ID)
+	task, err := s.store.ClaimNextTask(r.Context(), agent.UserID, agent.Agent.ID, s.cfg.TaskLease)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": nil})
@@ -104,6 +104,10 @@ func (s *Server) handleRunnerProgress(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "We couldn't save that update.")
 		return
 	}
+
+	// Posting progress renews the lease so a long job isn't mistaken for a
+	// crashed helper.
+	_ = s.store.TouchTask(r.Context(), agent.UserID, task.ID)
 
 	_ = s.store.AddActivity(r.Context(), agent.UserID, "progress",
 		agent.Agent.Name+" shared an update on “"+task.Title+"”", task.ID, agent.Agent.ID)

@@ -1,5 +1,7 @@
 # Crew
 
+![CI](https://github.com/davepartner/crew/actions/workflows/ci.yml/badge.svg)
+
 **Give your AI helpers work. See it get done.**
 
 Crew is a small, calm control panel for working with AI helpers. You add a helper, give it
@@ -248,6 +250,10 @@ Put it behind Caddy/nginx with TLS, and set `TRUSTED_PROXIES` on the Laravel sid
 per-IP rate limits see real visitors. `Dockerfile` builds the same binary.
 
 ---
+
+## License
+
+MIT — see [LICENSE](LICENSE).
 
 ## What it would take to "run a whole company"
 

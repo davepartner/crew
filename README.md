@@ -4,8 +4,9 @@
 
 **Give your AI helpers work. See it get done.**
 
-Crew is a small, calm control panel for working with AI helpers. You add a helper, give it
-a task, and the helper picks it up on your own machine. Nothing ships until you say it's good.
+Crew is a small, calm control panel for running a company with AI helpers. Tell it what
+business you run, and it sets up a team, their first tasks, and the context they need. Give
+them work; nothing ships until you say it's good.
 
 This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 
@@ -14,10 +15,14 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 2. **One job per screen.** No dashboards of dashboards. The home screen answers one question:
    *what needs me right now?*
 3. **Plain words.** "Helpers", "tasks", "your OK". No agents, adapters, heartbeats, or runs.
+4. **A company, not a chat.** Onboarding asks what you run, builds a preset team of 3 helpers
+   with starter tasks, and keeps every company separate. You can run as many as you like.
 
 | | |
 |---|---|
 | Backend | Go 1.24, stdlib HTTP, SQLite (WAL) |
+| Companies | Unlimited per person, each with its own helpers, tasks and activity |
+| Presets | 66 business types across 11 categories, each with a 3-person team and 3 tasks |
 | Frontend | React 19 + TypeScript + Vite (no UI framework) |
 | Sign-in | Passwordless email OTP via PayTrackify (`htdocs/email-finance`) |
 | Deploy | One static binary with the UI embedded |
@@ -88,7 +93,15 @@ go run ./cmd/crew
 cd web && npm run dev     # http://127.0.0.1:5173, proxies /api to :8787
 ```
 
-### 3. Give a helper something to do
+### 3. Onboard a company
+
+After signing in you will be asked what business you run. Pick from the list (or choose
+"Something else"), fill in the name, website, support email and audience, then review the team
+Crew will create. The last step connects an AI model — free options are listed first.
+
+You can add another company at any time from the company switcher in the sidebar.
+
+### 4. Give a helper something to do
 
 1. Open **Helpers → Add a helper**. Copy the key and command from the last step.
 2. On the machine that should do the work:
@@ -99,13 +112,36 @@ cd web && npm run dev     # http://127.0.0.1:5173, proxies /api to :8787
 
 3. Add a task, assign it to that helper, and watch it move to **Needs your OK**.
 
-The worker runs a shell command locally (default: prints the task title). Point it at a real
-agent CLI when you're ready:
+The worker asks Crew for the helper's model. If a model key is configured, it calls that
+provider directly:
 
 ```bash
-go run ./cmd/crew-worker --key crew_... \
+go run ./cmd/crew-worker --key crew_... --mode model
+```
+
+It supports OpenAI-compatible providers (OpenAI, OpenRouter, Groq, Mistral, DeepSeek, xAI,
+Together, Cerebras, local Ollama), Anthropic, and Google Gemini. With `--mode auto` (the
+default) it uses the model when one is configured and otherwise runs the command.
+
+To use your own CLI instead:
+
+```bash
+go run ./cmd/crew-worker --key crew_... --mode command \
   --command 'claude -p "Task: $CREW_TASK_TITLE. Details: $CREW_TASK_DETAILS"'
 ```
+
+### 5. Connect an AI model
+
+Open **Settings → AI models** (or the last onboarding step). Each provider card links to its
+key page and shows which ones are free:
+
+| Free to start | Paid |
+|---|---|
+| OpenRouter (`:free` models), Groq, Google Gemini, Mistral, Cerebras, Ollama (local) | OpenAI, Anthropic, DeepSeek, xAI, Together |
+
+Keys are encrypted with AES-256-GCM using `CREW_SECRET_KEY` (or a `0600` key file beside the
+database) and are never returned to the browser. A helper reads its key over its own bearer
+credential.
 
 ---
 
@@ -120,6 +156,7 @@ go run ./cmd/crew-worker --key crew_... \
 | `CREW_SESSION_CACHE_TTL` | `60s` | How long a validated session is cached. |
 | `CREW_SECURE_COOKIES` | `false` | Set `true` (or `CREW_ENV=production`) behind HTTPS. |
 | `CREW_ENV` | `development` | `production` forces secure cookies. |
+| `CREW_SECRET_KEY` | generated file | 32-byte hex/base64 key for provider-key encryption. Set this in production. |
 | `CREW_WEB_DIR` | embedded | Serve a different UI folder (useful for previews). |
 
 PayTrackify side (`email-finance/.env`):
@@ -175,13 +212,16 @@ covered by `tests/Feature/Api/OtpAuthTest.php`:
 
 ```
 users      (id, external_id, email, name, created_at)
-agents     (id, user_id, name, role, emoji, instructions, api_key_hash, last_seen_at)
-tasks      (id, user_id, title, details, status, agent_id, created_at, updated_at, completed_at)
+companies  (id, user_id, name, business_key, website, support_email, description, audience, tone)
+provider_keys (id, user_id, provider, key_cipher, last4)
+agents     (id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, api_key_hash, last_seen_at)
+tasks      (id, user_id, company_id, title, details, status, agent_id, created_at, updated_at, completed_at)
 comments   (id, task_id, author_type, author_name, body, created_at)
 activity   (id, user_id, kind, message, task_id, agent_id, created_at)
 ```
 
-Every query is scoped by `user_id` in the `WHERE` clause, not in the template. `agents.api_key_hash`
+Every query is scoped by `company_id` (validated against the signed-in owner) in the `WHERE`
+clause, not in the template. `agents.api_key_hash`
 is the only credential Crew stores; the raw key is shown once.
 
 **Upgrade path:** SQLite is deliberate for a single-node deployment. The store layer is
@@ -210,6 +250,12 @@ row-level security (see `ARCHITECTURE.md`).
 | `POST` | `/api/tasks/{id}/comments` | session | Add a note |
 | `POST` | `/api/tasks/{id}/approve` | session | Accept the result |
 | `POST` | `/api/tasks/{id}/send-back` | session | Ask for changes |
+| `GET/POST` | `/api/companies` | session | List / create companies (onboarding) |
+| `PATCH/DELETE` | `/api/companies/{id}` | session | Edit / delete a company |
+| `GET` | `/api/presets` | session | Business catalogue |
+| `GET` | `/api/providers` | session | Model providers, free flags, key status |
+| `PUT/DELETE` | `/api/providers/{key}` | session | Save / remove an encrypted key |
+| `POST` | `/api/providers/{key}/test` | session | Live key check |
 | `GET/POST` | `/api/agents` | session | List / add helpers |
 | `GET/PATCH/DELETE` | `/api/agents/{id}` | session | Manage a helper |
 | `POST` | `/api/agents/{id}/rotate-key` | session | New connection key |

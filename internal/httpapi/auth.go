@@ -111,10 +111,6 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 	s.setSession(w, result.Token)
 	s.cache.Set(result.Token, result.User)
 
-	if result.IsNew {
-		_ = s.store.AddActivity(r.Context(), local.ID, "welcome", "You joined Crew", "", "")
-	}
-
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":    true,
 		"user":  userPayload(local),
@@ -220,20 +216,34 @@ func (s *Server) handleExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	agents, _ := s.store.ListAgents(r.Context(), id.UserID)
-	tasks, _ := s.store.ListTasks(r.Context(), id.UserID, "")
-	activity, _ := s.store.ListActivity(r.Context(), id.UserID, 100)
-	comments, _ := s.store.CommentsForUser(r.Context(), id.UserID)
+	companies, err := s.store.ListCompanies(r.Context(), id.UserID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "We couldn't prepare your download.")
+		return
+	}
+
+	workspaces := make([]map[string]any, 0, len(companies))
+	for _, company := range companies {
+		agents, _ := s.store.ListAgents(r.Context(), company.ID)
+		tasks, _ := s.store.ListTasks(r.Context(), company.ID, "")
+		activity, _ := s.store.ListActivity(r.Context(), company.ID, 100)
+		comments, _ := s.store.CommentsForCompany(r.Context(), company.ID)
+
+		workspaces = append(workspaces, map[string]any{
+			"company":  company,
+			"agents":   agents,
+			"tasks":    tasks,
+			"activity": activity,
+			"comments": comments,
+		})
+	}
 
 	w.Header().Set("Content-Disposition", `attachment; filename="crew-export.json"`)
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"exported_at": time.Now().UTC().Format(time.RFC3339),
 		"user":        userPayload(user),
-		"agents":      agents,
-		"tasks":       tasks,
-		"activity":    activity,
-		"comments":    comments,
+		"companies":   workspaces,
 	})
 }
 

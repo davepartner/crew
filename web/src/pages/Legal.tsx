@@ -38,6 +38,8 @@ export function Privacy() {
         <li>Your name and email address, so we know who you are.</li>
         <li>The tasks you create, the helpers you add, the notes you write, and the activity that follows.</li>
         <li>Basic technical details when you sign in, such as the device name and IP address, so you can sign out devices you don't recognise.</li>
+        <li>Company details you enter, such as your website, support email and what the business does.</li>
+        <li>AI provider keys you choose to add. They are encrypted on the server and never shown again in the app.</li>
       </ul>
 
       <h2 className="section-title">What we don't do</h2>
@@ -49,8 +51,9 @@ export function Privacy() {
 
       <h2 className="section-title">Who else is involved</h2>
       <p>
-        Sign-in is handled by PayTrackify, which sends your one-time code. If you connect a helper, the helper's
-        provider processes the work you give it under their own terms.
+        Sign-in is handled by PayTrackify, which sends your one-time code. When you connect an AI provider, your
+        business details and task text are sent to that provider so your helpers can do the work. Their terms and
+        privacy policy also apply. We name every provider and link to its key page inside the app.
       </p>
 
       <h2 className="section-title">Your choices</h2>
@@ -78,6 +81,12 @@ export function Terms() {
       <p>
         You sign in with a one-time code sent to your email. Keep access to that inbox secure. You are responsible
         for the work you ask helpers to do and for the people you invite.
+      </p>
+
+      <h2 className="section-title">AI providers</h2>
+      <p>
+        Crew does not include a model. You connect your own provider account and are responsible for its usage,
+        costs and terms. Keys are encrypted at rest, used only to run your helpers, and can be removed at any time.
       </p>
 
       <h2 className="section-title">Acceptable use</h2>

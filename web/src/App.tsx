@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
-import { api, ApiError, type User } from "./api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { api, rememberedCompany, setCompany, type Company, type User } from "./api";
 import { Login } from "./pages/Login";
+import { Onboarding } from "./pages/Onboarding";
 import { Home } from "./pages/Home";
 import { Tasks } from "./pages/Tasks";
 import { TaskDetail } from "./pages/TaskDetail";
@@ -14,7 +15,10 @@ import { Link, navigate, usePath } from "./router";
 
 export default function App() {
   const [user, setUser] = useState<User | null | undefined>(undefined);
+  const [companies, setCompanies] = useState<Company[] | null>(null);
+  const [company, setCompanyState] = useState<Company | null>(null);
   const [theme, setTheme] = useState(() => window.localStorage.getItem("crew-theme") ?? "system");
+  const path = usePath();
 
   useEffect(() => {
     let cancelled = false;
@@ -22,13 +26,7 @@ export default function App() {
     api
       .me()
       .then((result) => !cancelled && setUser(result.user))
-      .catch((error: unknown) => {
-        if (cancelled) return;
-        if (error instanceof ApiError && error.status >= 500) {
-          // Keep the login screen usable; the next request retries.
-        }
-        setUser(null);
-      });
+      .catch(() => !cancelled && setUser(null));
 
     return () => {
       cancelled = true;
@@ -39,6 +37,8 @@ export default function App() {
     const onUnauthorized = () => {
       window.sessionStorage.setItem("crew:signed-out", "1");
       setUser(null);
+      setCompanies(null);
+      setCompanyState(null);
     };
 
     window.addEventListener("crew:unauthorized", onUnauthorized);
@@ -60,17 +60,75 @@ export default function App() {
     return () => media.removeEventListener("change", apply);
   }, [theme]);
 
+  const loadCompanies = useCallback(async () => {
+    const result = await api.companies();
+    const saved = rememberedCompany();
+    const active = result.companies.find((item) => item.id === saved) ?? result.companies[0] ?? null;
+
+    setCompanies(result.companies);
+    setCompanyState(active);
+    setCompany(active?.id ?? "");
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setCompanies(null);
+      return;
+    }
+
+    loadCompanies().catch(() => setCompanies([]));
+  }, [user, loadCompanies]);
+
+  function switchCompany(next: Company) {
+    setCompany(next.id);
+    setCompanyState(next);
+    navigate("/");
+  }
+
+  function finishOnboarding(next: Company) {
+    setCompany(next.id);
+    loadCompanies()
+      .then(() => navigate("/"))
+      .catch(() => {
+        setCompanies((current) => [...(current ?? []), next]);
+        setCompanyState(next);
+        navigate("/");
+      });
+  }
+
   if (user === undefined) return <Splash />;
   if (user === null) return <Login onSignedIn={setUser} />;
+  if (companies === null) return <Splash />;
+
+  if (path === "/new-company" || companies.length === 0) {
+    return (
+      <ToastProvider>
+        <Onboarding
+          onDone={finishOnboarding}
+          onCancel={companies.length > 0 ? () => navigate("/") : undefined}
+        />
+      </ToastProvider>
+    );
+  }
+
+  if (!company) return <Splash />;
 
   return (
     <ToastProvider>
       <Shell
         user={user}
+        company={company}
+        companies={companies}
         theme={theme}
         onTheme={setTheme}
         onUser={setUser}
-        onSignedOut={() => setUser(null)}
+        onCompany={setCompanyState}
+        onSwitchCompany={switchCompany}
+        onSignedOut={() => {
+          setUser(null);
+          setCompanies(null);
+          setCompanyState(null);
+        }}
       />
     </ToastProvider>
   );
@@ -101,26 +159,37 @@ const navItems: NavItem[] = [
 
 function Shell({
   user,
+  company,
+  companies,
   theme,
   onTheme,
   onUser,
+  onCompany,
+  onSwitchCompany,
   onSignedOut,
 }: {
   user: User;
+  company: Company;
+  companies: Company[];
   theme: string;
   onTheme: (theme: string) => void;
   onUser: (user: User) => void;
+  onCompany: (company: Company) => void;
+  onSwitchCompany: (company: Company) => void;
   onSignedOut: () => void;
 }) {
   const path = usePath();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [companyOpen, setCompanyOpen] = useState(false);
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const companyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSidebarOpen(false);
     setMenuOpen(false);
+    setCompanyOpen(false);
   }, [path]);
 
   useEffect(() => {
@@ -136,6 +205,20 @@ function Shell({
       document.removeEventListener("keydown", onKey);
     };
   }, [menuOpen]);
+
+  useEffect(() => {
+    if (!companyOpen) return;
+    const onClick = (event: MouseEvent) => {
+      if (companyRef.current && !companyRef.current.contains(event.target as Node)) setCompanyOpen(false);
+    };
+    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setCompanyOpen(false);
+    document.addEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [companyOpen]);
 
   const initials = user.name
     .split(" ")
@@ -156,6 +239,64 @@ function Shell({
           </span>
           <span className="brand-name">Crew</span>
         </Link>
+
+        <div ref={companyRef} style={{ position: "relative", marginBottom: 10 }}>
+          <button
+            className="company-button"
+            onClick={() => setCompanyOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={companyOpen}
+          >
+            <span className="company-avatar" aria-hidden="true">
+              {company.name.slice(0, 1).toUpperCase()}
+            </span>
+            <span className="grow" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {company.name}
+            </span>
+            <span aria-hidden="true">⌄</span>
+          </button>
+
+          {companyOpen ? (
+            <div className="card" style={{ position: "absolute", top: "calc(100% + 6px)", left: 0, right: 0, padding: 8, zIndex: 30, boxShadow: "var(--shadow-lg)" }} role="menu">
+              <p className="tiny muted" style={{ padding: "4px 10px 8px" }}>
+                Your companies
+              </p>
+              {companies.map((item) => (
+                <button
+                  key={item.id}
+                  className="nav-item"
+                  role="menuitem"
+                  onClick={() => {
+                    setCompanyOpen(false);
+                    if (item.id !== company.id) onSwitchCompany(item);
+                  }}
+                >
+                  <span className="company-avatar small" aria-hidden="true">
+                    {item.name.slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="grow" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {item.name}
+                  </span>
+                  {item.id === company.id ? <span aria-hidden="true">✓</span> : null}
+                </button>
+              ))}
+              <hr className="divider" style={{ margin: "6px 0" }} />
+              <button
+                className="nav-item"
+                role="menuitem"
+                onClick={() => {
+                  setCompanyOpen(false);
+                  navigate("/new-company");
+                }}
+              >
+                <span className="icon" aria-hidden="true">
+                  +
+                </span>
+                New company
+              </button>
+            </div>
+          ) : null}
+        </div>
 
         <nav className="nav" aria-label="Main">
           {navItems.map((item) => (
@@ -250,7 +391,7 @@ function Shell({
           <button className="btn btn-quiet btn-icon" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
             ☰
           </button>
-          <span className="brand-name">Crew</span>
+          <span className="brand-name">{company.name}</span>
           <Link to="/settings" aria-label="Settings">
             <span className="avatar avatar-sm" aria-hidden="true">
               {initials || "?"}
@@ -259,7 +400,16 @@ function Shell({
         </header>
 
         <main className="content">
-          <Route path={path} user={user} theme={theme} onTheme={onTheme} onUser={onUser} />
+          <Route
+            key={company.id}
+            path={path}
+            user={user}
+            company={company}
+            theme={theme}
+            onTheme={onTheme}
+            onUser={onUser}
+            onCompany={onCompany}
+          />
         </main>
       </div>
 
@@ -278,21 +428,35 @@ function Shell({
 function Route({
   path,
   user,
+  company,
   theme,
   onTheme,
   onUser,
+  onCompany,
 }: {
   path: string;
   user: User;
+  company: Company;
   theme: string;
   onTheme: (theme: string) => void;
   onUser: (user: User) => void;
+  onCompany: (company: Company) => void;
 }) {
   if (path === "/") return <Home />;
   if (path === "/tasks") return <Tasks />;
   if (path === "/helpers") return <Helpers />;
   if (path === "/activity") return <ActivityPage />;
-  if (path === "/settings") return <Settings user={user} theme={theme} onTheme={onTheme} onUser={onUser} />;
+  if (path === "/settings")
+    return (
+      <Settings
+        user={user}
+        company={company}
+        theme={theme}
+        onTheme={onTheme}
+        onUser={onUser}
+        onCompany={onCompany}
+      />
+    );
   if (path === "/privacy") return <Privacy />;
   if (path === "/terms") return <Terms />;
   if (path === "/support") return <Support />;

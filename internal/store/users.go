@@ -80,14 +80,19 @@ func (s *Store) UpdateUserName(ctx context.Context, id, name string) error {
 // itself lives in PayTrackify and is intentionally left alone.
 func (s *Store) DeleteUserData(ctx context.Context, id string) error {
 	return s.withTx(ctx, func(tx *sql.Tx) error {
-		if _, err := tx.ExecContext(ctx, `DELETE FROM activity WHERE user_id = ?`, id); err != nil {
+		if _, err := tx.ExecContext(ctx, `DELETE FROM comments WHERE task_id IN (SELECT id FROM tasks WHERE user_id = ?)`, id); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM tasks WHERE user_id = ?`, id); err != nil {
-			return err
-		}
-		if _, err := tx.ExecContext(ctx, `DELETE FROM agents WHERE user_id = ?`, id); err != nil {
-			return err
+		for _, stmt := range []string{
+			`DELETE FROM activity WHERE user_id = ?`,
+			`DELETE FROM tasks WHERE user_id = ?`,
+			`DELETE FROM agents WHERE user_id = ?`,
+			`DELETE FROM provider_keys WHERE user_id = ?`,
+			`DELETE FROM companies WHERE user_id = ?`,
+		} {
+			if _, err := tx.ExecContext(ctx, stmt, id); err != nil {
+				return err
+			}
 		}
 		_, err := tx.ExecContext(ctx, `DELETE FROM users WHERE id = ?`, id)
 		return err

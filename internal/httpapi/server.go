@@ -8,6 +8,7 @@ import (
 
 	"github.com/davepartner/crew/internal/config"
 	"github.com/davepartner/crew/internal/payauth"
+	"github.com/davepartner/crew/internal/secret"
 	"github.com/davepartner/crew/internal/store"
 	"github.com/davepartner/crew/internal/webui"
 )
@@ -17,11 +18,12 @@ type Server struct {
 	store   *store.Store
 	auth    *payauth.Client
 	cache   *payauth.Cache
+	cipher  *secret.Cipher
 	webFS   fs.FS
 	limiter *limiter
 }
 
-func New(cfg config.Config, st *store.Store, client *payauth.Client) *Server {
+func New(cfg config.Config, st *store.Store, client *payauth.Client, cipher *secret.Cipher) *Server {
 	var webFS fs.FS
 	if cfg.WebDir != "" {
 		webFS = os.DirFS(cfg.WebDir)
@@ -34,6 +36,7 @@ func New(cfg config.Config, st *store.Store, client *payauth.Client) *Server {
 		store:   st,
 		auth:    client,
 		cache:   payauth.NewCache(cfg.SessionCacheTTL),
+		cipher:  cipher,
 		webFS:   webFS,
 		limiter: newLimiter(12, time.Minute),
 	}
@@ -44,6 +47,7 @@ func (s *Server) Handler() http.Handler {
 	s.routes(mux)
 
 	var handler http.Handler = mux
+	handler = s.withCompany(handler)
 	handler = s.withIdentity(handler)
 	handler = s.withCSRF(handler)
 	handler = s.withLogging(handler)
@@ -73,29 +77,45 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/me/sessions", s.requireUser(s.handleSessions))
 	mux.HandleFunc("DELETE /api/me/sessions/{id}", s.requireUser(s.handleRevokeSession))
 
-	// Work.
-	mux.HandleFunc("GET /api/dashboard", s.requireUser(s.handleDashboard))
-	mux.HandleFunc("GET /api/activity", s.requireUser(s.handleActivity))
+	// Companies and onboarding.
+	mux.HandleFunc("GET /api/companies", s.requireUser(s.handleListCompanies))
+	mux.HandleFunc("POST /api/companies", s.requireUser(s.handleCreateCompany))
+	mux.HandleFunc("GET /api/companies/{id}", s.requireUser(s.handleGetCompany))
+	mux.HandleFunc("PATCH /api/companies/{id}", s.requireUser(s.handleUpdateCompany))
+	mux.HandleFunc("DELETE /api/companies/{id}", s.requireUser(s.handleDeleteCompany))
+	mux.HandleFunc("GET /api/presets", s.requireUser(s.handlePresets))
+	mux.HandleFunc("GET /api/presets/{key}", s.requireUser(s.handlePreset))
 
-	mux.HandleFunc("GET /api/agents", s.requireUser(s.handleListAgents))
-	mux.HandleFunc("POST /api/agents", s.requireUser(s.handleCreateAgent))
-	mux.HandleFunc("GET /api/agents/{id}", s.requireUser(s.handleGetAgent))
-	mux.HandleFunc("PATCH /api/agents/{id}", s.requireUser(s.handleUpdateAgent))
-	mux.HandleFunc("DELETE /api/agents/{id}", s.requireUser(s.handleDeleteAgent))
-	mux.HandleFunc("POST /api/agents/{id}/rotate-key", s.requireUser(s.handleRotateAgentKey))
+	// AI providers and keys.
+	mux.HandleFunc("GET /api/providers", s.requireUser(s.handleProviders))
+	mux.HandleFunc("PUT /api/providers/{key}", s.requireUser(s.handleSetProviderKey))
+	mux.HandleFunc("DELETE /api/providers/{key}", s.requireUser(s.handleDeleteProviderKey))
+	mux.HandleFunc("POST /api/providers/{key}/test", s.requireUser(s.handleTestProvider))
 
-	mux.HandleFunc("GET /api/tasks", s.requireUser(s.handleListTasks))
-	mux.HandleFunc("POST /api/tasks", s.requireUser(s.handleCreateTask))
-	mux.HandleFunc("GET /api/tasks/{id}", s.requireUser(s.handleGetTask))
-	mux.HandleFunc("PATCH /api/tasks/{id}", s.requireUser(s.handleUpdateTask))
-	mux.HandleFunc("DELETE /api/tasks/{id}", s.requireUser(s.handleDeleteTask))
-	mux.HandleFunc("POST /api/tasks/{id}/comments", s.requireUser(s.handleAddComment))
-	mux.HandleFunc("POST /api/tasks/{id}/approve", s.requireUser(s.handleApproveTask))
-	mux.HandleFunc("POST /api/tasks/{id}/send-back", s.requireUser(s.handleSendBack))
+	// Work, scoped to the active company.
+	mux.HandleFunc("GET /api/dashboard", s.requireUser(s.requireCompany(s.handleDashboard)))
+	mux.HandleFunc("GET /api/activity", s.requireUser(s.requireCompany(s.handleActivity)))
+
+	mux.HandleFunc("GET /api/agents", s.requireUser(s.requireCompany(s.handleListAgents)))
+	mux.HandleFunc("POST /api/agents", s.requireUser(s.requireCompany(s.handleCreateAgent)))
+	mux.HandleFunc("GET /api/agents/{id}", s.requireUser(s.requireCompany(s.handleGetAgent)))
+	mux.HandleFunc("PATCH /api/agents/{id}", s.requireUser(s.requireCompany(s.handleUpdateAgent)))
+	mux.HandleFunc("DELETE /api/agents/{id}", s.requireUser(s.requireCompany(s.handleDeleteAgent)))
+	mux.HandleFunc("POST /api/agents/{id}/rotate-key", s.requireUser(s.requireCompany(s.handleRotateAgentKey)))
+
+	mux.HandleFunc("GET /api/tasks", s.requireUser(s.requireCompany(s.handleListTasks)))
+	mux.HandleFunc("POST /api/tasks", s.requireUser(s.requireCompany(s.handleCreateTask)))
+	mux.HandleFunc("GET /api/tasks/{id}", s.requireUser(s.requireCompany(s.handleGetTask)))
+	mux.HandleFunc("PATCH /api/tasks/{id}", s.requireUser(s.requireCompany(s.handleUpdateTask)))
+	mux.HandleFunc("DELETE /api/tasks/{id}", s.requireUser(s.requireCompany(s.handleDeleteTask)))
+	mux.HandleFunc("POST /api/tasks/{id}/comments", s.requireUser(s.requireCompany(s.handleAddComment)))
+	mux.HandleFunc("POST /api/tasks/{id}/approve", s.requireUser(s.requireCompany(s.handleApproveTask)))
+	mux.HandleFunc("POST /api/tasks/{id}/send-back", s.requireUser(s.requireCompany(s.handleSendBack)))
 
 	// Helper (agent) runner API.
 	mux.HandleFunc("POST /api/runner/claim", s.requireAgent(s.handleRunnerClaim))
 	mux.HandleFunc("POST /api/runner/heartbeat", s.requireAgent(s.handleRunnerHeartbeat))
+	mux.HandleFunc("GET /api/runner/model", s.requireAgent(s.handleRunnerModel))
 	mux.HandleFunc("POST /api/runner/tasks/{id}/progress", s.requireAgent(s.handleRunnerProgress))
 	mux.HandleFunc("POST /api/runner/tasks/{id}/complete", s.requireAgent(s.handleRunnerComplete))
 

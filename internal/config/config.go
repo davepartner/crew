@@ -18,6 +18,7 @@ type Config struct {
 	SecureCookies   bool
 	TrustProxy      bool
 	TaskLease       time.Duration
+	SecretKey       string
 	WebDir          string
 	Env             string
 	ServiceName     string
@@ -33,6 +34,7 @@ func Load() Config {
 		SecureCookies:   envBool("CREW_SECURE_COOKIES", false),
 		TrustProxy:      envBool("CREW_TRUST_PROXY", false),
 		TaskLease:       envDuration("CREW_TASK_LEASE", time.Hour),
+		SecretKey:       env("CREW_SECRET_KEY", ""),
 		WebDir:          env("CREW_WEB_DIR", ""),
 		Env:             env("CREW_ENV", "development"),
 		ServiceName:     env("CREW_NAME", "Crew"),

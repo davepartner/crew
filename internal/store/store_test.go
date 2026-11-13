@@ -22,23 +22,28 @@ func TestClaimRequeuesStaleWork(t *testing.T) {
 		t.Fatalf("user: %v", err)
 	}
 
-	agent, err := st.CreateAgent(ctx, user.ID, "Ada", "Writer", "✍️", "", "hash-1")
+	company, err := st.CreateCompany(ctx, user.ID, CompanyInput{Name: "Test Co", BusinessKey: "custom"})
+	if err != nil {
+		t.Fatalf("company: %v", err)
+	}
+
+	agent, err := st.CreateAgent(ctx, user.ID, company.ID, "Ada", "Writer", "✍️", "", "hash-1")
 	if err != nil {
 		t.Fatalf("agent: %v", err)
 	}
 
-	task, err := st.CreateTask(ctx, user.ID, "Do the thing", "", agent.ID)
+	task, err := st.CreateTask(ctx, user.ID, company.ID, "Do the thing", "", agent.ID)
 	if err != nil {
 		t.Fatalf("task: %v", err)
 	}
 
-	claimed, err := st.ClaimNextTask(ctx, user.ID, agent.ID, time.Hour)
+	claimed, err := st.ClaimNextTask(ctx, company.ID, agent.ID, time.Hour)
 	if err != nil || claimed.ID != task.ID {
 		t.Fatalf("first claim: %v %v", claimed, err)
 	}
 
 	// A live lease must not be stolen.
-	if _, err := st.ClaimNextTask(ctx, user.ID, agent.ID, time.Hour); !errors.Is(err, ErrNotFound) {
+	if _, err := st.ClaimNextTask(ctx, company.ID, agent.ID, time.Hour); !errors.Is(err, ErrNotFound) {
 		t.Fatalf("expected ErrNotFound while the lease is fresh, got %v", err)
 	}
 
@@ -48,7 +53,7 @@ func TestClaimRequeuesStaleWork(t *testing.T) {
 		t.Fatalf("age task: %v", err)
 	}
 
-	again, err := st.ClaimNextTask(ctx, user.ID, agent.ID, time.Hour)
+	again, err := st.ClaimNextTask(ctx, company.ID, agent.ID, time.Hour)
 	if err != nil {
 		t.Fatalf("reclaim: %v", err)
 	}
@@ -66,15 +71,16 @@ func TestTouchTaskExtendsTheLease(t *testing.T) {
 
 	ctx := context.Background()
 	user, _ := st.UpsertUser(ctx, "ext-1", "jane@example.com", "Jane")
-	agent, _ := st.CreateAgent(ctx, user.ID, "Ada", "Writer", "✍️", "", "hash-1")
-	task, _ := st.CreateTask(ctx, user.ID, "Do the thing", "", agent.ID)
+	company, _ := st.CreateCompany(ctx, user.ID, CompanyInput{Name: "Test Co", BusinessKey: "custom"})
+	agent, _ := st.CreateAgent(ctx, user.ID, company.ID, "Ada", "Writer", "✍️", "", "hash-1")
+	task, _ := st.CreateTask(ctx, user.ID, company.ID, "Do the thing", "", agent.ID)
 
 	old := time.Now().UTC().Add(-30 * time.Minute).Format(TimeFormat)
 	if _, err := st.db.ExecContext(ctx, `UPDATE tasks SET updated_at = ? WHERE id = ?`, old, task.ID); err != nil {
 		t.Fatalf("age task: %v", err)
 	}
 
-	if err := st.TouchTask(ctx, user.ID, task.ID); err != nil {
+	if err := st.TouchTask(ctx, company.ID, task.ID); err != nil {
 		t.Fatalf("touch: %v", err)
 	}
 

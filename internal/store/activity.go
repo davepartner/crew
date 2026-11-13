@@ -15,7 +15,7 @@ type Activity struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-func (s *Store) AddActivity(ctx context.Context, userID, kind, message, taskID, agentID string) error {
+func (s *Store) AddActivity(ctx context.Context, userID, companyID, kind, message, taskID, agentID string) error {
 	var task, agent any
 	if taskID != "" {
 		task = taskID
@@ -25,20 +25,20 @@ func (s *Store) AddActivity(ctx context.Context, userID, kind, message, taskID, 
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO activity (user_id, kind, message, task_id, agent_id, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)`, userID, kind, message, task, agent, Now())
+		INSERT INTO activity (user_id, company_id, kind, message, task_id, agent_id, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)`, userID, companyID, kind, message, task, agent, Now())
 
 	return err
 }
 
-func (s *Store) ListActivity(ctx context.Context, userID string, limit int) ([]Activity, error) {
+func (s *Store) ListActivity(ctx context.Context, companyID string, limit int) ([]Activity, error) {
 	if limit <= 0 || limit > 100 {
 		limit = 30
 	}
 
 	rows, err := s.db.QueryContext(ctx, `
 		SELECT id, kind, message, task_id, agent_id, created_at
-		FROM activity WHERE user_id = ? ORDER BY id DESC LIMIT ?`, userID, limit)
+		FROM activity WHERE company_id = ? ORDER BY id DESC LIMIT ?`, companyID, limit)
 	if err != nil {
 		return nil, err
 	}

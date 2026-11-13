@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type Agent, type Task } from "../api";
+import { api, ApiError, type Agent, type Provider, type Task } from "../api";
 import { NewTaskModal } from "../components/NewTaskModal";
 import { TaskRow } from "../components/rows";
 import { Link, navigate } from "../router";
 import { relativeTime } from "../time";
 import { Avatar, Button, EmptyState, Field, Modal, Select, Textarea, useToast } from "../ui";
 import { statusLabel } from "./Helpers";
-
-const roles = ["Researcher", "Writer", "Coder", "Designer", "Planner", "Support", "Helper"];
+import { roles } from "../roles";
 
 export function HelperDetail({ id }: { id: string }) {
   const { push } = useToast();
@@ -21,6 +20,10 @@ export function HelperDetail({ id }: { id: string }) {
   const [copied, setCopied] = useState(false);
   const [removeOpen, setRemoveOpen] = useState(false);
   const [taskOpen, setTaskOpen] = useState(false);
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [modelProvider, setModelProvider] = useState("");
+  const [modelName, setModelName] = useState("");
+  const [modelBusy, setModelBusy] = useState(false);
 
   const load = useCallback(() => {
     api
@@ -29,6 +32,8 @@ export function HelperDetail({ id }: { id: string }) {
         setAgent(result.agent);
         setRole(result.agent.role);
         setInstructions(result.agent.instructions);
+        setModelProvider(result.agent.model_provider ?? "");
+        setModelName(result.agent.model_name ?? "");
         setTasks(result.tasks ?? []);
         setError(null);
       })
@@ -38,6 +43,13 @@ export function HelperDetail({ id }: { id: string }) {
   }, [id]);
 
   useEffect(load, [load]);
+
+  useEffect(() => {
+    api
+      .providers()
+      .then((result) => setProviders(result.providers.filter((provider) => provider.configured)))
+      .catch(() => setProviders([]));
+  }, []);
 
   async function save() {
     setBusy(true);
@@ -227,6 +239,77 @@ export function HelperDetail({ id }: { id: string }) {
             <Button onClick={save} loading={busy}>
               Save changes
             </Button>
+          </section>
+
+          <section className="card">
+            <h2 className="section-title mb-8">Model</h2>
+            <p className="small muted mb-16">
+              Which AI model {agent.name} should use. Add keys in{" "}
+              <Link to="/settings">Settings → AI models</Link>.
+            </p>
+
+            {providers.length === 0 ? (
+              <p className="small muted">
+                No model keys yet. Add one and this helper can think for itself.
+              </p>
+            ) : (
+              <>
+                <Field label="Provider" htmlFor="agent-provider">
+                  <Select
+                    id="agent-provider"
+                    value={modelProvider}
+                    onChange={(event) => {
+                      const value = event.target.value;
+                      setModelProvider(value);
+                      const provider = providers.find((item) => item.key === value);
+                      setModelName(provider?.default_model ?? "");
+                    }}
+                  >
+                    <option value="">Use the worker's default</option>
+                    {providers.map((provider) => (
+                      <option key={provider.key} value={provider.key}>
+                        {provider.name}
+                        {provider.free ? " (free)" : ""}
+                      </option>
+                    ))}
+                  </Select>
+                </Field>
+
+                {modelProvider ? (
+                  <Field label="Model" htmlFor="agent-model">
+                    <Select
+                      id="agent-model"
+                      value={modelName}
+                      onChange={(event) => setModelName(event.target.value)}
+                    >
+                      {(providers.find((item) => item.key === modelProvider)?.models ?? []).map((model) => (
+                        <option key={model} value={model}>
+                          {model}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+                ) : null}
+
+                <Button
+                  onClick={async () => {
+                    setModelBusy(true);
+                    try {
+                      const result = await api.updateAgent(id, { modelProvider, modelName });
+                      setAgent(result.agent);
+                      push("Model saved.");
+                    } catch (err) {
+                      push(err instanceof ApiError ? err.message : "We couldn't save that.", "error");
+                    } finally {
+                      setModelBusy(false);
+                    }
+                  }}
+                  loading={modelBusy}
+                >
+                  Save model
+                </Button>
+              </>
+            )}
           </section>
 
           <section className="card">

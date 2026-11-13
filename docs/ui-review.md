@@ -49,11 +49,22 @@ and 390×844, light and dark.
 | Semantic + ARIA | Pass | `nav`, `main`, `form`, `label`, `fieldset`; `aria-current`, `aria-pressed`, `aria-live` for errors, `aria-modal` dialogs with a Tab trap, Esc closes. |
 | No stack traces | Pass | Every error is a sentence with a next step. |
 
+## Company onboarding
+
+- Four steps, one decision each: business → details → team → model.
+- The business picker is searchable and grouped by category; 66 presets, with "Something else"
+  as an always-visible fallback.
+- The team and first tasks are previewed before anything is created.
+- The action bar is sticky, so Continue is reachable without scrolling a long list.
+- The model step labels free providers and links to each key page.
+- Consent for sharing business details with an AI provider is stated before creation.
+
 ## Account surfaces
 
-- Profile: name, email (read-only, explained), member since.
+- Company: name, website, support email, audience, description, tone.
+- Profile: name, email (read-only, explained), member since, appearance.
 - Sign-in & devices: device, IP, last used, per-device sign-out.
-- Preferences: appearance (system/light/dark).
+- AI models: provider list, free flags, encrypted keys, test, replace, remove.
 - Privacy & data: JSON export, link to the policy.
 - Danger zone: delete workspace, gated by typing `delete`.
 - Sign out: last item in the profile menu, confirmation dialog with an optional reason, recorded server-side; Esc and Cancel are safe.

@@ -38,10 +38,11 @@ type claimResponse struct {
 func main() {
 	server := flag.String("server", "http://127.0.0.1:8787", "Crew server URL")
 	key := flag.String("key", os.Getenv("CREW_HELPER_KEY"), "helper key (crew_...)")
-	command := flag.String("command", `printf 'Done: %s\n' "$CREW_TASK_TITLE"`, "shell command to run for each task")
+	command := flag.String("command", `printf 'Done: %s\n' "$CREW_TASK_TITLE"`, "shell command when no model is configured")
 	once := flag.Bool("once", false, "claim and run one task, then exit")
 	review := flag.Bool("review", true, "ask for a human OK when finished")
 	poll := flag.Duration("poll", 3*time.Second, "how often to look for work")
+	mode := flag.String("mode", "auto", "auto, model or command")
 	flag.Parse()
 
 	if *key == "" {
@@ -53,7 +54,8 @@ func main() {
 		key:     *key,
 		command: *command,
 		review:  *review,
-		http:    &http.Client{Timeout: 60 * time.Second},
+		mode:    *mode,
+		http:    &http.Client{Timeout: 120 * time.Second},
 	}
 
 	log.Printf("helper connected to %s — waiting for work", worker.server)
@@ -76,7 +78,7 @@ func main() {
 		}
 
 		log.Printf("picked up: %s", claimed.Task.Title)
-		worker.run(claimed.Task)
+		worker.run(claimed.Task, claimed.Instructions)
 
 		if *once {
 			return
@@ -89,7 +91,17 @@ type worker struct {
 	key     string
 	command string
 	review  bool
+	mode    string
 	http    *http.Client
+}
+
+type modelConfig struct {
+	Configured bool   `json:"configured"`
+	Provider   string `json:"provider"`
+	Kind       string `json:"kind"`
+	BaseURL    string `json:"base_url"`
+	Model      string `json:"model"`
+	APIKey     string `json:"api_key"`
 }
 
 func (w *worker) claim() (*claimResponse, error) {
@@ -100,9 +112,165 @@ func (w *worker) claim() (*claimResponse, error) {
 	return &out, nil
 }
 
-func (w *worker) run(t *task) {
+func (w *worker) askModel(model modelConfig, t *task, instructions string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	defer cancel()
+
+	system := strings.TrimSpace(instructions)
+	if system == "" {
+		system = "You are a helpful assistant. Do the task and return the finished work."
+	}
+
+	prompt := "Task: " + t.Title + "\n\n" + t.Details + "\n\nReturn the finished work, ready for a human to review. Be concise and concrete."
+
+	switch model.Kind {
+	case "anthropic":
+		return w.askAnthropic(ctx, model, system, prompt)
+	case "google":
+		return w.askGoogle(ctx, model, system, prompt)
+	default:
+		return w.askOpenAI(ctx, model, system, prompt)
+	}
+}
+
+func (w *worker) askOpenAI(ctx context.Context, model modelConfig, system, prompt string) (string, error) {
+	payload := map[string]any{
+		"model": model.Model,
+		"messages": []map[string]string{
+			{"role": "system", "content": system},
+			{"role": "user", "content": prompt},
+		},
+		"temperature": 0.3,
+	}
+	return w.postJSON(ctx, model.BaseURL+"/chat/completions", map[string]string{
+		"Authorization": "Bearer " + model.APIKey,
+	}, payload, func(raw []byte) (string, error) {
+		var out struct {
+			Choices []struct {
+				Message struct {
+					Content string `json:"content"`
+				} `json:"message"`
+			} `json:"choices"`
+		}
+		if err := json.Unmarshal(raw, &out); err != nil {
+			return "", err
+		}
+		if len(out.Choices) == 0 {
+			return "", fmt.Errorf("empty response")
+		}
+		return out.Choices[0].Message.Content, nil
+	})
+}
+
+func (w *worker) askAnthropic(ctx context.Context, model modelConfig, system, prompt string) (string, error) {
+	payload := map[string]any{
+		"model":      model.Model,
+		"max_tokens": 1600,
+		"system":     system,
+		"messages":   []map[string]string{{"role": "user", "content": prompt}},
+	}
+	return w.postJSON(ctx, model.BaseURL+"/messages", map[string]string{
+		"x-api-key":         model.APIKey,
+		"anthropic-version": "2023-06-01",
+	}, payload, func(raw []byte) (string, error) {
+		var out struct {
+			Content []struct {
+				Text string `json:"text"`
+			} `json:"content"`
+		}
+		if err := json.Unmarshal(raw, &out); err != nil {
+			return "", err
+		}
+		parts := make([]string, 0, len(out.Content))
+		for _, part := range out.Content {
+			if part.Text != "" {
+				parts = append(parts, part.Text)
+			}
+		}
+		return strings.Join(parts, "\n"), nil
+	})
+}
+
+func (w *worker) askGoogle(ctx context.Context, model modelConfig, system, prompt string) (string, error) {
+	payload := map[string]any{
+		"systemInstruction": map[string]any{"parts": []map[string]string{{"text": system}}},
+		"contents":          []map[string]any{{"parts": []map[string]string{{"text": prompt}}}},
+	}
+	url := model.BaseURL + "/models/" + model.Model + ":generateContent?key=" + model.APIKey
+	return w.postJSON(ctx, url, nil, payload, func(raw []byte) (string, error) {
+		var out struct {
+			Candidates []struct {
+				Content struct {
+					Parts []struct {
+						Text string `json:"text"`
+					} `json:"parts"`
+				} `json:"content"`
+			} `json:"candidates"`
+		}
+		if err := json.Unmarshal(raw, &out); err != nil {
+			return "", err
+		}
+		if len(out.Candidates) == 0 {
+			return "", fmt.Errorf("empty response")
+		}
+		parts := make([]string, 0)
+		for _, part := range out.Candidates[0].Content.Parts {
+			if part.Text != "" {
+				parts = append(parts, part.Text)
+			}
+		}
+		return strings.Join(parts, "\n"), nil
+	})
+}
+
+func (w *worker) postJSON(ctx context.Context, url string, headers map[string]string, payload any, decode func([]byte) (string, error)) (string, error) {
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	for key, value := range headers {
+		if value != "" {
+			req.Header.Set(key, value)
+		}
+	}
+
+	resp, err := w.http.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
+	if resp.StatusCode >= 400 {
+		return "", fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(raw)))
+	}
+
+	return decode(raw)
+}
+
+func (w *worker) run(t *task, instructions string) {
 	_ = w.do(http.MethodPost, "/api/runner/tasks/"+t.ID+"/progress",
 		map[string]string{"message": "Working on it…"}, nil)
+
+	if w.mode != "command" {
+		var model modelConfig
+		if err := w.do(http.MethodGet, "/api/runner/model", nil, &model); err == nil && model.Configured {
+			result, err := w.askModel(model, t, instructions)
+			if err == nil && strings.TrimSpace(result) != "" {
+				_ = w.do(http.MethodPost, "/api/runner/tasks/"+t.ID+"/complete",
+					map[string]any{"summary": result, "needsReview": w.review}, nil)
+				log.Printf("finished with %s: %s", model.Model, t.Title)
+				return
+			}
+			log.Printf("model call failed, falling back: %v", err)
+		}
+	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()

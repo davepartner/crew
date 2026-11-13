@@ -1,3 +1,54 @@
+export type Company = {
+  id: string;
+  name: string;
+  business_key: string;
+  website: string;
+  support_email: string;
+  description: string;
+  audience: string;
+  tone: string;
+  created_at: string;
+  agent_count: number;
+  task_count: number;
+};
+
+export type BusinessPreset = {
+  key: string;
+  name: string;
+  category: string;
+  emoji: string;
+  blurb: string;
+  agents: number;
+  tasks: number;
+  integrations: string[];
+};
+
+export type PresetDetail = {
+  key: string;
+  name: string;
+  category: string;
+  emoji: string;
+  blurb: string;
+  agents: { name: string; role: string; emoji: string }[];
+  tasks: { title: string; agent: string }[];
+  integrations: string[];
+};
+
+export type Provider = {
+  key: string;
+  name: string;
+  kind: string;
+  base_url: string;
+  keys_url: string;
+  docs_url: string;
+  free: boolean;
+  free_note: string;
+  default_model: string;
+  models: string[];
+  configured: boolean;
+  last4: string;
+};
+
 export type User = {
   id: string;
   email: string;
@@ -13,6 +64,8 @@ export type Agent = {
   role: string;
   emoji: string;
   instructions: string;
+  model_provider: string;
+  model_name: string;
   status: AgentStatus;
   open_tasks: number;
   working_tasks: number;
@@ -64,6 +117,7 @@ export type Dashboard = {
   ok: boolean;
   greeting: string;
   name: string;
+  company: { id: string; name: string; business_key: string; website: string };
   counts: Record<TaskStatus, number>;
   needsYou: Task[];
   working: Task[];
@@ -81,6 +135,21 @@ export class ApiError extends Error {
     this.status = status;
     this.retryAfter = retryAfter;
   }
+}
+
+let activeCompany = "";
+
+export function setCompany(id: string) {
+  activeCompany = id;
+  if (id) {
+    window.localStorage.setItem("crew:company", id);
+  } else {
+    window.localStorage.removeItem("crew:company");
+  }
+}
+
+export function rememberedCompany(): string {
+  return activeCompany || window.localStorage.getItem("crew:company") || "";
 }
 
 function readCookie(name: string): string {
@@ -104,6 +173,10 @@ async function request<T>(
 
   if (init.body) {
     headers.set("Content-Type", "application/json");
+  }
+
+  if (activeCompany) {
+    headers.set("X-Crew-Company", activeCompany);
   }
 
   if (method !== "GET" && method !== "HEAD") {
@@ -187,6 +260,36 @@ export const api = {
   revokeSession: (id: string) =>
     request<{ ok: boolean }>(`/api/me/sessions/${id}`, { method: "DELETE" }),
 
+  companies: () => request<{ ok: boolean; companies: Company[] }>("/api/companies"),
+  createCompany: (input: Record<string, unknown>) =>
+    request<{ ok: boolean; company: Company; agentsCreated: number; tasksCreated: number }>("/api/companies", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  company: (id: string) => request<{ ok: boolean; company: Company }>(`/api/companies/${id}`),
+  updateCompany: (id: string, input: Record<string, unknown>) =>
+    request<{ ok: boolean; company: Company }>(`/api/companies/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  deleteCompany: (id: string) =>
+    request<{ ok: boolean }>(`/api/companies/${id}`, { method: "DELETE" }),
+
+  presets: () =>
+    request<{ ok: boolean; businesses: BusinessPreset[]; categories: string[] }>("/api/presets"),
+  preset: (key: string) => request<{ ok: boolean } & PresetDetail>(`/api/presets/${key}`),
+
+  providers: () => request<{ ok: boolean; providers: Provider[] }>("/api/providers"),
+  setProviderKey: (key: string, apiKey: string) =>
+    request<{ ok: boolean; provider: string; configured: boolean; last4: string }>(`/api/providers/${key}`, {
+      method: "PUT",
+      body: JSON.stringify({ apiKey }),
+    }),
+  deleteProviderKey: (key: string) =>
+    request<{ ok: boolean }>(`/api/providers/${key}`, { method: "DELETE" }),
+  testProvider: (key: string) =>
+    request<{ ok: boolean; message: string }>(`/api/providers/${key}/test`, { method: "POST" }),
+
   dashboard: () => request<Dashboard>("/api/dashboard"),
   activity: () => request<{ ok: boolean; activity: ActivityItem[] }>("/api/activity"),
 
@@ -198,7 +301,7 @@ export const api = {
     }),
   agent: (id: string) =>
     request<{ ok: boolean; agent: Agent; tasks: Task[]; status: AgentStatus }>(`/api/agents/${id}`),
-  updateAgent: (id: string, input: Partial<Pick<Agent, "name" | "role" | "emoji" | "instructions">>) =>
+  updateAgent: (id: string, input: Partial<Pick<Agent, "name" | "role" | "emoji" | "instructions" | "model_provider" | "model_name">> & { modelProvider?: string; modelName?: string }) =>
     request<{ ok: boolean; agent: Agent }>(`/api/agents/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input),

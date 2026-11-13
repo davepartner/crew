@@ -110,11 +110,138 @@ func (s *Store) migrate(ctx context.Context) error {
 			created_at TEXT NOT NULL
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_activity_user ON activity(user_id, id DESC)`,
+		`CREATE TABLE IF NOT EXISTS companies (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			name TEXT NOT NULL,
+			business_key TEXT NOT NULL DEFAULT 'custom',
+			website TEXT NOT NULL DEFAULT '',
+			support_email TEXT NOT NULL DEFAULT '',
+			description TEXT NOT NULL DEFAULT '',
+			audience TEXT NOT NULL DEFAULT '',
+			tone TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_companies_user ON companies(user_id)`,
+		`CREATE TABLE IF NOT EXISTS provider_keys (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+			provider TEXT NOT NULL,
+			key_cipher TEXT NOT NULL,
+			last4 TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			UNIQUE(user_id, provider)
+		)`,
 	}
 
 	for _, stmt := range stmts {
 		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
 			return fmt.Errorf("migrate: %w", err)
+		}
+	}
+
+	columns := []struct {
+		table, column, definition string
+	}{
+		{"agents", "company_id", "TEXT NOT NULL DEFAULT ''"},
+		{"agents", "model_provider", "TEXT NOT NULL DEFAULT ''"},
+		{"agents", "model_name", "TEXT NOT NULL DEFAULT ''"},
+		{"tasks", "company_id", "TEXT NOT NULL DEFAULT ''"},
+		{"activity", "company_id", "TEXT NOT NULL DEFAULT ''"},
+	}
+
+	for _, column := range columns {
+		if err := s.ensureColumn(ctx, column.table, column.column, column.definition); err != nil {
+			return err
+		}
+	}
+
+	return s.ensureDefaultCompanies(ctx)
+}
+
+func (s *Store) ensureColumn(ctx context.Context, table, column, definition string) error {
+	rows, err := s.db.QueryContext(ctx, "PRAGMA table_info("+table+")")
+	if err != nil {
+		return err
+	}
+	defer rows.Close()
+
+	found := false
+	for rows.Next() {
+		var cid int
+		var name, kind string
+		var notNull, pk int
+		var defaultValue any
+
+		if err := rows.Scan(&cid, &name, &kind, &notNull, &defaultValue, &pk); err != nil {
+			return err
+		}
+		if name == column {
+			found = true
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	if found {
+		return nil
+	}
+
+	_, err = s.db.ExecContext(ctx, fmt.Sprintf("ALTER TABLE %s ADD COLUMN %s %s", table, column, definition))
+	return err
+}
+
+// ensureDefaultCompanies preserves data from before companies existed: anyone
+// with agents or tasks gets a "My company" workspace and their rows are linked
+// to it. New users start with no company so onboarding runs.
+func (s *Store) ensureDefaultCompanies(ctx context.Context) error {
+	rows, err := s.db.QueryContext(ctx, `
+		SELECT DISTINCT user_id FROM agents WHERE company_id = ''
+		UNION
+		SELECT DISTINCT user_id FROM tasks WHERE company_id = ''`)
+	if err != nil {
+		return err
+	}
+
+	var users []string
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			rows.Close()
+			return err
+		}
+		users = append(users, userID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return err
+	}
+
+	for _, userID := range users {
+		var companyID string
+		err := s.db.QueryRowContext(ctx, `SELECT id FROM companies WHERE user_id = ? ORDER BY created_at LIMIT 1`, userID).Scan(&companyID)
+		if err != nil && !isNotFound(err) {
+			return err
+		}
+
+		if companyID == "" {
+			companyID = NewID()
+			if _, err := s.db.ExecContext(ctx, `
+				INSERT INTO companies (id, user_id, name, business_key, created_at)
+				VALUES (?, ?, ?, ?, ?)`, companyID, userID, "My company", "custom", Now()); err != nil {
+				return err
+			}
+		}
+
+		for _, stmt := range []string{
+			`UPDATE agents SET company_id = ? WHERE user_id = ? AND company_id = ''`,
+			`UPDATE tasks SET company_id = ? WHERE user_id = ? AND company_id = ''`,
+			`UPDATE activity SET company_id = ? WHERE user_id = ? AND company_id = ''`,
+		} {
+			if _, err := s.db.ExecContext(ctx, stmt, companyID, userID); err != nil {
+				return err
+			}
 		}
 	}
 

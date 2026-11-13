@@ -71,6 +71,9 @@ export function Home() {
           <h1 className="page-title">
             {data.greeting}, {firstName}
           </h1>
+          <p className="tiny muted" style={{ marginBottom: 4 }}>
+            {data.company.name}
+          </p>
           <p className="page-sub">
             {totalOpen === 0
               ? "Nothing is waiting on you. Add a task when you're ready."

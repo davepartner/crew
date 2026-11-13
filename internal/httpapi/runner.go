@@ -6,14 +6,14 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/davepartner/crew/internal/modelcatalog"
 	"github.com/davepartner/crew/internal/store"
 )
 
 const agentKey ctxKey = "agent"
 
 type agentIdentity struct {
-	Agent  store.Agent
-	UserID string
+	Agent store.Agent
 }
 
 func (s *Server) requireAgent(next http.HandlerFunc) http.HandlerFunc {
@@ -30,7 +30,7 @@ func (s *Server) requireAgent(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		agent, userID, err := s.store.AgentForKeyHash(r.Context(), hashKey(key))
+		agent, err := s.store.AgentForKeyHash(r.Context(), hashKey(key))
 		if err != nil {
 			writeError(w, http.StatusUnauthorized, "That helper key isn't valid.")
 			return
@@ -38,7 +38,7 @@ func (s *Server) requireAgent(next http.HandlerFunc) http.HandlerFunc {
 
 		_ = s.store.TouchAgent(r.Context(), agent.ID)
 
-		ctx := context.WithValue(r.Context(), agentKey, &agentIdentity{Agent: agent, UserID: userID})
+		ctx := context.WithValue(r.Context(), agentKey, &agentIdentity{Agent: agent})
 		next(w, r.WithContext(ctx))
 	}
 }
@@ -57,7 +57,7 @@ func (s *Server) handleRunnerHeartbeat(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 	agent := agentFrom(r)
 
-	task, err := s.store.ClaimNextTask(r.Context(), agent.UserID, agent.Agent.ID, s.cfg.TaskLease)
+	task, err := s.store.ClaimNextTask(r.Context(), agent.Agent.CompanyID, agent.Agent.ID, s.cfg.TaskLease)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": nil})
@@ -67,7 +67,7 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = s.store.AddActivity(r.Context(), agent.UserID, "task_started",
+	_ = s.store.AddActivity(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, "task_started",
 		agent.Agent.Name+" started “"+task.Title+"”", task.ID, agent.Agent.ID)
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -107,9 +107,9 @@ func (s *Server) handleRunnerProgress(w http.ResponseWriter, r *http.Request) {
 
 	// Posting progress renews the lease so a long job isn't mistaken for a
 	// crashed helper.
-	_ = s.store.TouchTask(r.Context(), agent.UserID, task.ID)
+	_ = s.store.TouchTask(r.Context(), agent.Agent.CompanyID, task.ID)
 
-	_ = s.store.AddActivity(r.Context(), agent.UserID, "progress",
+	_ = s.store.AddActivity(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, "progress",
 		agent.Agent.Name+" shared an update on “"+task.Title+"”", task.ID, agent.Agent.ID)
 
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "comment": comment})
@@ -142,7 +142,7 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 		status = store.StatusReview
 	}
 
-	updated, err := s.store.UpdateTask(r.Context(), agent.UserID, task.ID, store.TaskPatch{Status: &status})
+	updated, err := s.store.UpdateTask(r.Context(), agent.Agent.CompanyID, task.ID, store.TaskPatch{Status: &status})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't save that result.")
 		return
@@ -154,15 +154,67 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 	if body.NeedsReview {
 		message = agent.Agent.Name + " finished “" + task.Title + "” and wants your OK"
 	}
-	_ = s.store.AddActivity(r.Context(), agent.UserID, "task_finished", message, task.ID, agent.Agent.ID)
+	_ = s.store.AddActivity(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, "task_finished", message, task.ID, agent.Agent.ID)
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": updated})
+}
+
+// handleRunnerModel hands the helper the model configuration it should use.
+// The key is decrypted only for the holder of a valid helper key.
+func (s *Server) handleRunnerModel(w http.ResponseWriter, r *http.Request) {
+	agent := agentFrom(r)
+
+	if agent.Agent.ModelProvider == "" || agent.Agent.ModelName == "" {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "configured": false, "reason": "no_model"})
+		return
+	}
+
+	provider, ok := modelcatalog.ByKey(agent.Agent.ModelProvider)
+	if !ok {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "configured": false, "reason": "unknown_provider"})
+		return
+	}
+
+	if provider.Key == "ollama" {
+		writeJSON(w, http.StatusOK, map[string]any{
+			"ok":         true,
+			"configured": true,
+			"provider":   provider.Key,
+			"kind":       provider.Kind,
+			"base_url":   provider.BaseURL,
+			"model":      agent.Agent.ModelName,
+			"api_key":    "",
+		})
+		return
+	}
+
+	cipherText, err := s.store.ProviderKeyCipher(r.Context(), agent.Agent.UserID, provider.Key)
+	if err != nil {
+		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "configured": false, "reason": "no_key"})
+		return
+	}
+
+	key, err := s.cipher.Decrypt(cipherText)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "We couldn't read that model key.")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":         true,
+		"configured": true,
+		"provider":   provider.Key,
+		"kind":       provider.Kind,
+		"base_url":   provider.BaseURL,
+		"model":      agent.Agent.ModelName,
+		"api_key":    key,
+	})
 }
 
 // runnerTask loads a task and proves it is checked out to this helper, so one
 // helper can never write to another's work.
 func (s *Server) runnerTask(w http.ResponseWriter, r *http.Request, agent *agentIdentity) (store.Task, bool) {
-	task, err := s.store.GetTask(r.Context(), agent.UserID, r.PathValue("id"))
+	task, err := s.store.GetTask(r.Context(), agent.Agent.CompanyID, r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "That task doesn't exist.")
 		return store.Task{}, false

@@ -7,18 +7,24 @@ import (
 )
 
 type Agent struct {
-	ID           string     `json:"id"`
-	Name         string     `json:"name"`
-	Role         string     `json:"role"`
-	Emoji        string     `json:"emoji"`
-	Instructions string     `json:"instructions"`
-	LastSeenAt   *time.Time `json:"last_seen_at"`
-	CreatedAt    time.Time  `json:"created_at"`
+	ID            string     `json:"id"`
+	UserID        string     `json:"-"`
+	CompanyID     string     `json:"company_id,omitempty"`
+	Name          string     `json:"name"`
+	Role          string     `json:"role"`
+	Emoji         string     `json:"emoji"`
+	Instructions  string     `json:"instructions"`
+	ModelProvider string     `json:"model_provider"`
+	ModelName     string     `json:"model_name"`
+	LastSeenAt    *time.Time `json:"last_seen_at"`
+	CreatedAt     time.Time  `json:"created_at"`
 }
 
-func (s *Store) CreateAgent(ctx context.Context, userID, name, role, emoji, instructions, keyHash string) (Agent, error) {
+func (s *Store) CreateAgent(ctx context.Context, userID, companyID, name, role, emoji, instructions, keyHash string) (Agent, error) {
 	agent := Agent{
 		ID:           NewID(),
+		UserID:       userID,
+		CompanyID:    companyID,
 		Name:         name,
 		Role:         role,
 		Emoji:        emoji,
@@ -27,10 +33,10 @@ func (s *Store) CreateAgent(ctx context.Context, userID, name, role, emoji, inst
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO agents (id, user_id, name, role, emoji, instructions, api_key_hash, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		agent.ID, userID, agent.Name, agent.Role, agent.Emoji, agent.Instructions, keyHash,
-		agent.CreatedAt.Format(TimeFormat),
+		INSERT INTO agents (id, user_id, company_id, name, role, emoji, instructions, api_key_hash, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		agent.ID, userID, companyID, agent.Name, agent.Role, agent.Emoji, agent.Instructions,
+		keyHash, agent.CreatedAt.Format(TimeFormat),
 	)
 	if err != nil {
 		return Agent{}, err
@@ -39,10 +45,10 @@ func (s *Store) CreateAgent(ctx context.Context, userID, name, role, emoji, inst
 	return agent, nil
 }
 
-func (s *Store) ListAgents(ctx context.Context, userID string) ([]Agent, error) {
+func (s *Store) ListAgents(ctx context.Context, companyID string) ([]Agent, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, name, role, emoji, instructions, last_seen_at, created_at
-		FROM agents WHERE user_id = ? ORDER BY created_at ASC`, userID)
+		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, last_seen_at, created_at
+		FROM agents WHERE company_id = ? ORDER BY created_at ASC`, companyID)
 	if err != nil {
 		return nil, err
 	}
@@ -60,16 +66,16 @@ func (s *Store) ListAgents(ctx context.Context, userID string) ([]Agent, error) 
 	return agents, rows.Err()
 }
 
-func (s *Store) CountAgents(ctx context.Context, userID string) (int, error) {
+func (s *Store) CountAgents(ctx context.Context, companyID string) (int, error) {
 	var count int
-	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM agents WHERE user_id = ?`, userID).Scan(&count)
+	err := s.db.QueryRowContext(ctx, `SELECT COUNT(*) FROM agents WHERE company_id = ?`, companyID).Scan(&count)
 	return count, err
 }
 
-func (s *Store) GetAgent(ctx context.Context, userID, id string) (Agent, error) {
+func (s *Store) GetAgent(ctx context.Context, companyID, id string) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, name, role, emoji, instructions, last_seen_at, created_at
-		FROM agents WHERE user_id = ? AND id = ?`, userID, id)
+		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, last_seen_at, created_at
+		FROM agents WHERE company_id = ? AND id = ?`, companyID, id)
 
 	agent, err := scanAgent(row)
 	if isNotFound(err) {
@@ -78,20 +84,20 @@ func (s *Store) GetAgent(ctx context.Context, userID, id string) (Agent, error) 
 	return agent, err
 }
 
-func (s *Store) UpdateAgent(ctx context.Context, userID, id, name, role, emoji, instructions string) (Agent, error) {
+func (s *Store) UpdateAgent(ctx context.Context, companyID, id, name, role, emoji, instructions, modelProvider, modelName string) (Agent, error) {
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE agents SET name = ?, role = ?, emoji = ?, instructions = ?
-		WHERE user_id = ? AND id = ?`,
-		name, role, emoji, instructions, userID, id)
+		UPDATE agents SET name = ?, role = ?, emoji = ?, instructions = ?, model_provider = ?, model_name = ?
+		WHERE company_id = ? AND id = ?`,
+		name, role, emoji, instructions, modelProvider, modelName, companyID, id)
 	if err != nil {
 		return Agent{}, err
 	}
 
-	return s.GetAgent(ctx, userID, id)
+	return s.GetAgent(ctx, companyID, id)
 }
 
-func (s *Store) DeleteAgent(ctx context.Context, userID, id string) error {
-	res, err := s.db.ExecContext(ctx, `DELETE FROM agents WHERE user_id = ? AND id = ?`, userID, id)
+func (s *Store) DeleteAgent(ctx context.Context, companyID, id string) error {
+	res, err := s.db.ExecContext(ctx, `DELETE FROM agents WHERE company_id = ? AND id = ?`, companyID, id)
 	if err != nil {
 		return err
 	}
@@ -101,9 +107,9 @@ func (s *Store) DeleteAgent(ctx context.Context, userID, id string) error {
 	return nil
 }
 
-func (s *Store) RotateAgentKey(ctx context.Context, userID, id, keyHash string) error {
+func (s *Store) RotateAgentKey(ctx context.Context, companyID, id, keyHash string) error {
 	res, err := s.db.ExecContext(ctx, `
-		UPDATE agents SET api_key_hash = ? WHERE user_id = ? AND id = ?`, keyHash, userID, id)
+		UPDATE agents SET api_key_hash = ? WHERE company_id = ? AND id = ?`, keyHash, companyID, id)
 	if err != nil {
 		return err
 	}
@@ -114,34 +120,17 @@ func (s *Store) RotateAgentKey(ctx context.Context, userID, id, keyHash string) 
 }
 
 // AgentForKeyHash resolves the bearer credential a helper presents to the
-// runner API. It is the only lookup that is not scoped by user id, because the
-// key itself is the scope.
-func (s *Store) AgentForKeyHash(ctx context.Context, keyHash string) (Agent, string, error) {
-	var userID string
+// runner API. The key itself is the scope.
+func (s *Store) AgentForKeyHash(ctx context.Context, keyHash string) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, user_id, name, role, emoji, instructions, last_seen_at, created_at
+		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, last_seen_at, created_at
 		FROM agents WHERE api_key_hash = ?`, keyHash)
 
-	var agent Agent
-	var lastSeen sql.NullString
-	var created string
-
-	err := row.Scan(&agent.ID, &userID, &agent.Name, &agent.Role, &agent.Emoji,
-		&agent.Instructions, &lastSeen, &created)
+	agent, err := scanAgent(row)
 	if isNotFound(err) {
-		return Agent{}, "", ErrNotFound
+		return Agent{}, ErrNotFound
 	}
-	if err != nil {
-		return Agent{}, "", err
-	}
-
-	if lastSeen.Valid {
-		t := ParseTime(lastSeen.String)
-		agent.LastSeenAt = &t
-	}
-	agent.CreatedAt = ParseTime(created)
-
-	return agent, userID, nil
+	return agent, err
 }
 
 func (s *Store) TouchAgent(ctx context.Context, agentID string) error {
@@ -158,8 +147,8 @@ func scanAgent(row scanner) (Agent, error) {
 	var lastSeen sql.NullString
 	var created string
 
-	err := row.Scan(&agent.ID, &agent.Name, &agent.Role, &agent.Emoji,
-		&agent.Instructions, &lastSeen, &created)
+	err := row.Scan(&agent.ID, &agent.UserID, &agent.CompanyID, &agent.Name, &agent.Role, &agent.Emoji,
+		&agent.Instructions, &agent.ModelProvider, &agent.ModelName, &lastSeen, &created)
 	if err != nil {
 		return Agent{}, err
 	}

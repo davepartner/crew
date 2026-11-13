@@ -18,6 +18,7 @@ import (
 	"github.com/davepartner/crew/internal/config"
 	"github.com/davepartner/crew/internal/httpapi"
 	"github.com/davepartner/crew/internal/payauth"
+	"github.com/davepartner/crew/internal/secret"
 	"github.com/davepartner/crew/internal/store"
 )
 
@@ -194,7 +195,12 @@ func newHarness(t *testing.T) *harness {
 		ServiceName:     "Crew",
 	}
 
-	server := httpapi.New(cfg, st, payauth.NewClient(cfg.PaytrackifyURL, cfg.PaytrackifyTime))
+	cipher, err := secret.New(bytes.Repeat([]byte{7}, 32))
+	if err != nil {
+		t.Fatalf("cipher: %v", err)
+	}
+
+	server := httpapi.New(cfg, st, payauth.NewClient(cfg.PaytrackifyURL, cfg.PaytrackifyTime), cipher)
 	base := httptest.NewServer(server.Handler())
 	t.Cleanup(base.Close)
 
@@ -202,9 +208,10 @@ func newHarness(t *testing.T) *harness {
 }
 
 type browser struct {
-	h    *harness
-	http *http.Client
-	jar  *cookiejar.Jar
+	h       *harness
+	http    *http.Client
+	jar     *cookiejar.Jar
+	company string
 }
 
 func (h *harness) newBrowser(t *testing.T) *browser {
@@ -262,6 +269,9 @@ func (b *browser) do(t *testing.T, method, path string, body any, out any) (int,
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
 	}
+	if b.company != "" {
+		req.Header.Set("X-Crew-Company", b.company)
+	}
 	if method != http.MethodGet {
 		req.Header.Set("X-CSRF-Token", b.csrf(t))
 	}
@@ -298,6 +308,31 @@ func (b *browser) login(t *testing.T, email string) {
 	if status != 200 {
 		t.Fatalf("verify: %d %s", status, raw)
 	}
+
+	b.ensureCompany(t)
+}
+
+// ensureCompany creates a workspace and points subsequent calls at it, which
+// is what onboarding does in the browser.
+func (b *browser) ensureCompany(t *testing.T) {
+	t.Helper()
+
+	var created struct {
+		Company map[string]any `json:"company"`
+	}
+	status, raw := b.do(t, http.MethodPost, "/api/companies", map[string]any{
+		"name":        "Test Co",
+		"businessKey": "custom",
+	}, &created)
+	if status != 201 {
+		t.Fatalf("create company: %d %s", status, raw)
+	}
+
+	id, _ := created.Company["id"].(string)
+	if id == "" {
+		t.Fatalf("company id missing: %v", created)
+	}
+	b.company = id
 }
 
 func TestLoginCreatesAWorkspaceAndProtectsIt(t *testing.T) {
@@ -609,14 +644,16 @@ func TestExportIncludesCommentsAndIsNotCached(t *testing.T) {
 	}
 
 	var body struct {
-		Comments []map[string]any `json:"comments"`
+		Companies []struct {
+			Comments []map[string]any `json:"comments"`
+		} `json:"companies"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatalf("decode export: %v", err)
 	}
 
-	if len(body.Comments) != 1 {
-		t.Fatalf("expected the note in the export, got %d", len(body.Comments))
+	if len(body.Companies) != 1 || len(body.Companies[0].Comments) != 1 {
+		t.Fatalf("expected the note in the export, got %+v", body.Companies)
 	}
 }
 
@@ -631,5 +668,133 @@ func TestMissingAssetIsNotFound(t *testing.T) {
 
 	if resp.StatusCode != http.StatusNotFound {
 		t.Fatalf("expected 404 for a missing asset, got %d", resp.StatusCode)
+	}
+}
+
+func TestCompanyPresetCreatesATeamAndKeepsCompaniesSeparate(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var created struct {
+		Company       map[string]any `json:"company"`
+		AgentsCreated int            `json:"agentsCreated"`
+		TasksCreated  int            `json:"tasksCreated"`
+	}
+
+	status, raw := b.do(t, http.MethodPost, "/api/companies", map[string]any{
+		"name": "Northstar", "businessKey": "saas", "audience": "small teams",
+	}, &created)
+	if status != 201 {
+		t.Fatalf("create preset company: %d %s", status, raw)
+	}
+	if created.AgentsCreated != 3 || created.TasksCreated != 3 {
+		t.Fatalf("expected a 3-person team and 3 tasks, got %d/%d", created.AgentsCreated, created.TasksCreated)
+	}
+
+	id, _ := created.Company["id"].(string)
+	b.company = id
+
+	var agents struct {
+		Agents []map[string]any `json:"agents"`
+	}
+	b.do(t, http.MethodGet, "/api/agents", nil, &agents)
+	if len(agents.Agents) != 3 {
+		t.Fatalf("expected 3 agents in the new company, got %d", len(agents.Agents))
+	}
+
+	var tasks struct {
+		Tasks []map[string]any `json:"tasks"`
+	}
+	b.do(t, http.MethodGet, "/api/tasks", nil, &tasks)
+	if len(tasks.Tasks) != 3 {
+		t.Fatalf("expected 3 starter tasks, got %d", len(tasks.Tasks))
+	}
+	for _, task := range tasks.Tasks {
+		if task["agent_id"] == nil || task["agent_id"] == "" {
+			t.Fatalf("starter task was not assigned: %v", task)
+		}
+	}
+
+	var dashboard struct {
+		Company map[string]any `json:"company"`
+	}
+	b.do(t, http.MethodGet, "/api/dashboard", nil, &dashboard)
+	if dashboard.Company["name"] != "Northstar" {
+		t.Fatalf("dashboard is not scoped to the company: %v", dashboard.Company)
+	}
+}
+
+func TestProviderKeyUnlocksTheHelperModel(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	const apiKey = "sk-test-1234567890"
+
+	status, raw := b.do(t, http.MethodPut, "/api/providers/openai", map[string]string{"apiKey": apiKey}, nil)
+	if status != 200 {
+		t.Fatalf("save provider key: %d %s", status, raw)
+	}
+
+	var providers struct {
+		Providers []map[string]any `json:"providers"`
+	}
+	status, raw = b.do(t, http.MethodGet, "/api/providers", nil, &providers)
+	if status != 200 {
+		t.Fatalf("list providers: %d %s", status, raw)
+	}
+	if strings.Contains(raw, apiKey) {
+		t.Fatal("the API returned the raw provider key")
+	}
+
+	var openai map[string]any
+	for _, provider := range providers.Providers {
+		if provider["key"] == "openai" {
+			openai = provider
+		}
+	}
+	if openai == nil || openai["configured"] != true || openai["last4"] != "7890" {
+		t.Fatalf("openai not configured: %v", openai)
+	}
+
+	var created struct {
+		Agent  map[string]any `json:"agent"`
+		APIKey string         `json:"apiKey"`
+	}
+	b.do(t, http.MethodPost, "/api/agents", map[string]string{"name": "Ada", "role": "Researcher"}, &created)
+	agentID, _ := created.Agent["id"].(string)
+
+	status, raw = b.do(t, http.MethodPatch, "/api/agents/"+agentID, map[string]string{
+		"modelProvider": "openai",
+		"modelName":     "gpt-4o-mini",
+	}, nil)
+	if status != 200 {
+		t.Fatalf("set agent model: %d %s", status, raw)
+	}
+
+	req, _ := http.NewRequest(http.MethodGet, h.base+"/api/runner/model", nil)
+	req.Header.Set("Authorization", "Bearer "+created.APIKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("runner model: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var model struct {
+		Configured bool   `json:"configured"`
+		Provider   string `json:"provider"`
+		Model      string `json:"model"`
+		APIKey     string `json:"api_key"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&model); err != nil {
+		t.Fatalf("decode model: %v", err)
+	}
+	if !model.Configured || model.Provider != "openai" || model.Model != "gpt-4o-mini" || model.APIKey != apiKey {
+		t.Fatalf("helper did not receive the model config: %+v", model)
+	}
+
+	if status, _ := b.do(t, http.MethodDelete, "/api/providers/openai", nil, nil); status != 200 {
+		t.Fatalf("delete key: %d", status)
 	}
 }

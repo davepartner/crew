@@ -14,7 +14,7 @@ var allowedStatuses = map[string]bool{
 }
 
 func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
-	id := identityFrom(r)
+	company := companyFrom(r)
 
 	status := r.URL.Query().Get("status")
 	if status != "" && !allowedStatuses[status] {
@@ -22,7 +22,7 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, err := s.store.ListTasks(r.Context(), id.UserID, status)
+	tasks, err := s.store.ListTasks(r.Context(), company.ID, status)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load your tasks. Please refresh.")
 		return
@@ -33,6 +33,7 @@ func (s *Server) handleListTasks(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
+	company := companyFrom(r)
 
 	var body struct {
 		Title   string `json:"title"`
@@ -52,7 +53,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 
 	agentID := ""
 	if body.AgentID != "" {
-		agent, err := s.store.GetAgent(r.Context(), id.UserID, body.AgentID)
+		agent, err := s.store.GetAgent(r.Context(), company.ID, body.AgentID)
 		if err != nil {
 			writeError(w, http.StatusUnprocessableEntity, "That helper doesn't exist.")
 			return
@@ -60,7 +61,7 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 		agentID = agent.ID
 	}
 
-	task, err := s.store.CreateTask(r.Context(), id.UserID, title, trim(body.Details, 8000), agentID)
+	task, err := s.store.CreateTask(r.Context(), id.UserID, company.ID, title, trim(body.Details, 8000), agentID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't save that task. Please try again.")
 		return
@@ -70,15 +71,15 @@ func (s *Server) handleCreateTask(w http.ResponseWriter, r *http.Request) {
 	if task.Agent != nil {
 		message = "You gave " + task.Agent.Name + " a task"
 	}
-	_ = s.store.AddActivity(r.Context(), id.UserID, "task_created", message, task.ID, agentID)
+	_ = s.store.AddActivity(r.Context(), id.UserID, company.ID, "task_created", message, task.ID, agentID)
 
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "task": task})
 }
 
 func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
-	id := identityFrom(r)
+	company := companyFrom(r)
 
-	task, err := s.store.GetTask(r.Context(), id.UserID, r.PathValue("id"))
+	task, err := s.store.GetTask(r.Context(), company.ID, r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "That task doesn't exist.")
 		return
@@ -88,7 +89,7 @@ func (s *Server) handleGetTask(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
-	id := identityFrom(r)
+	company := companyFrom(r)
 
 	var body struct {
 		Title    *string `json:"title"`
@@ -125,7 +126,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if body.AgentID != nil && *body.AgentID != "" {
-		if _, err := s.store.GetAgent(r.Context(), id.UserID, *body.AgentID); err != nil {
+		if _, err := s.store.GetAgent(r.Context(), company.ID, *body.AgentID); err != nil {
 			writeError(w, http.StatusUnprocessableEntity, "That helper doesn't exist.")
 			return
 		}
@@ -133,7 +134,7 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 		patch.Clear = false
 	}
 
-	task, err := s.store.UpdateTask(r.Context(), id.UserID, r.PathValue("id"), patch)
+	task, err := s.store.UpdateTask(r.Context(), company.ID, r.PathValue("id"), patch)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "That task doesn't exist.")
 		return
@@ -144,22 +145,24 @@ func (s *Server) handleUpdateTask(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteTask(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
+	company := companyFrom(r)
 
-	if err := s.store.DeleteTask(r.Context(), id.UserID, r.PathValue("id")); err != nil {
+	if err := s.store.DeleteTask(r.Context(), company.ID, r.PathValue("id")); err != nil {
 		writeError(w, http.StatusNotFound, "That task doesn't exist.")
 		return
 	}
 
-	_ = s.store.AddActivity(r.Context(), id.UserID, "task_deleted", "You deleted a task", "", "")
+	_ = s.store.AddActivity(r.Context(), id.UserID, company.ID, "task_deleted", "You deleted a task", "", "")
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
+	company := companyFrom(r)
 	taskID := r.PathValue("id")
 
-	task, err := s.store.GetTask(r.Context(), id.UserID, taskID)
+	task, err := s.store.GetTask(r.Context(), company.ID, taskID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "That task doesn't exist.")
 		return
@@ -185,16 +188,17 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_ = s.store.AddActivity(r.Context(), id.UserID, "comment", "You commented on “"+task.Title+"”", task.ID, "")
+	_ = s.store.AddActivity(r.Context(), id.UserID, company.ID, "comment", "You commented on “"+task.Title+"”", task.ID, "")
 
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "comment": comment})
 }
 
 func (s *Server) handleApproveTask(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
+	company := companyFrom(r)
 	taskID := r.PathValue("id")
 
-	task, err := s.store.GetTask(r.Context(), id.UserID, taskID)
+	task, err := s.store.GetTask(r.Context(), company.ID, taskID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "That task doesn't exist.")
 		return
@@ -206,23 +210,24 @@ func (s *Server) handleApproveTask(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := store.StatusDone
-	updated, err := s.store.UpdateTask(r.Context(), id.UserID, task.ID, store.TaskPatch{Status: &status})
+	updated, err := s.store.UpdateTask(r.Context(), company.ID, task.ID, store.TaskPatch{Status: &status})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't approve that. Please try again.")
 		return
 	}
 
 	_, _ = s.store.AddComment(r.Context(), task.ID, "system", "Crew", "You approved this. Nice.")
-	_ = s.store.AddActivity(r.Context(), id.UserID, "approved", "You approved “"+task.Title+"”", task.ID, "")
+	_ = s.store.AddActivity(r.Context(), id.UserID, company.ID, "approved", "You approved “"+task.Title+"”", task.ID, "")
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": updated})
 }
 
 func (s *Server) handleSendBack(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
+	company := companyFrom(r)
 	taskID := r.PathValue("id")
 
-	task, err := s.store.GetTask(r.Context(), id.UserID, taskID)
+	task, err := s.store.GetTask(r.Context(), company.ID, taskID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "That task doesn't exist.")
 		return
@@ -244,14 +249,14 @@ func (s *Server) handleSendBack(w http.ResponseWriter, r *http.Request) {
 	}
 
 	status := store.StatusTodo
-	updated, err := s.store.UpdateTask(r.Context(), id.UserID, task.ID, store.TaskPatch{Status: &status})
+	updated, err := s.store.UpdateTask(r.Context(), company.ID, task.ID, store.TaskPatch{Status: &status})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't send that back. Please try again.")
 		return
 	}
 
 	_, _ = s.store.AddComment(r.Context(), task.ID, "you", id.Name, "Sent back: "+note)
-	_ = s.store.AddActivity(r.Context(), id.UserID, "sent_back", "You sent “"+task.Title+"” back", task.ID, "")
+	_ = s.store.AddActivity(r.Context(), id.UserID, company.ID, "sent_back", "You sent “"+task.Title+"” back", task.ID, "")
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": updated})
 }

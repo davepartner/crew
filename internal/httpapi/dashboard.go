@@ -10,6 +10,7 @@ import (
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
+	company := companyFrom(r)
 
 	user, err := s.store.GetUser(r.Context(), id.UserID)
 	if err != nil {
@@ -17,25 +18,25 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tasks, err := s.store.ListTasks(r.Context(), id.UserID, "")
+	tasks, err := s.store.ListTasks(r.Context(), company.ID, "")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load your dashboard. Please refresh.")
 		return
 	}
 
-	agents, err := s.store.ListAgents(r.Context(), id.UserID)
+	agents, err := s.store.ListAgents(r.Context(), company.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load your helpers. Please refresh.")
 		return
 	}
 
-	activity, err := s.store.ListActivity(r.Context(), id.UserID, 8)
+	activity, err := s.store.ListActivity(r.Context(), company.ID, 8)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load recent activity. Please refresh.")
 		return
 	}
 
-	counts, err := s.store.StatusCounts(r.Context(), id.UserID)
+	counts, err := s.store.StatusCounts(r.Context(), company.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load your dashboard. Please refresh.")
 		return
@@ -63,20 +64,20 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	openByAgent := map[string]int{}
+	workingByAgent := map[string]int{}
 	for _, task := range tasks {
-		if task.AgentID != nil && (task.Status == store.StatusTodo || task.Status == store.StatusWorking) {
+		if task.AgentID == nil {
+			continue
+		}
+		if task.Status == store.StatusWorking {
+			workingByAgent[*task.AgentID]++
+		}
+		if task.Status == store.StatusTodo || task.Status == store.StatusWorking {
 			openByAgent[*task.AgentID]++
 		}
 	}
 
 	views := make([]agentView, 0, len(agents))
-	workingByAgent := map[string]int{}
-	for _, task := range tasks {
-		if task.AgentID != nil && task.Status == store.StatusWorking {
-			workingByAgent[*task.AgentID]++
-		}
-	}
-
 	for _, agent := range agents {
 		views = append(views, agentView{
 			Agent:        agent,
@@ -90,6 +91,12 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		"ok":       true,
 		"greeting": greeting(),
 		"name":     user.Name,
+		"company": map[string]any{
+			"id":           company.ID,
+			"name":         company.Name,
+			"business_key": company.BusinessKey,
+			"website":      company.Website,
+		},
 		"counts":   counts,
 		"needsYou": needsYou,
 		"working":  working,
@@ -100,7 +107,7 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
-	id := identityFrom(r)
+	company := companyFrom(r)
 
 	limit := 30
 	if raw := r.URL.Query().Get("limit"); raw != "" {
@@ -109,7 +116,7 @@ func (s *Server) handleActivity(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	items, err := s.store.ListActivity(r.Context(), id.UserID, limit)
+	items, err := s.store.ListActivity(r.Context(), company.ID, limit)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load activity. Please refresh.")
 		return

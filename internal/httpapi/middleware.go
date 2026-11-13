@@ -9,6 +9,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/davepartner/crew/internal/store"
 )
 
 type ctxKey string
@@ -96,6 +98,58 @@ func (s *Server) sessionToken(r *http.Request) string {
 func identityFrom(r *http.Request) *identity {
 	value, _ := r.Context().Value(identityKey).(*identity)
 	return value
+}
+
+const companyKey ctxKey = "company"
+
+// withCompany picks the active company from X-Crew-Company, falling back to the
+// first one. It runs after identity, so the company is always owned by the
+// signed-in person.
+func (s *Server) withCompany(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		id := identityFrom(r)
+		if id == nil {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		companies, err := s.store.ListCompanies(r.Context(), id.UserID)
+		if err != nil || len(companies) == 0 {
+			next.ServeHTTP(w, r)
+			return
+		}
+
+		requested := strings.TrimSpace(r.Header.Get("X-Crew-Company"))
+		active := companies[0]
+		for _, company := range companies {
+			if company.ID == requested {
+				active = company
+				break
+			}
+		}
+
+		ctx := context.WithValue(r.Context(), companyKey, &active)
+		next.ServeHTTP(w, r.WithContext(ctx))
+	})
+}
+
+func companyFrom(r *http.Request) *store.Company {
+	value, _ := r.Context().Value(companyKey).(*store.Company)
+	return value
+}
+
+func (s *Server) requireCompany(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if companyFrom(r) == nil {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"ok":    false,
+				"code":  "no_company",
+				"error": "Create a company to get started.",
+			})
+			return
+		}
+		next(w, r)
+	}
 }
 
 func (s *Server) requireUser(next http.HandlerFunc) http.HandlerFunc {

@@ -1,42 +1,97 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, type Session, type User } from "../api";
+import { api, ApiError, type Company, type Provider, type Session, type User } from "../api";
+import { ModelsPanel } from "../components/ModelsPanel";
 import { relativeTime, shortDate } from "../time";
-import { Button, Field, Input, Modal, Select, Tabs, useToast } from "../ui";
+import { Button, Field, Input, Modal, Select, Tabs, Textarea, useToast } from "../ui";
+
+const tones = ["Friendly", "Professional", "Playful", "Direct", "Warm"];
 
 const tabs = [
-  { id: "profile", label: "Your profile" },
-  { id: "signin", label: "Sign-in & devices" },
-  { id: "preferences", label: "Preferences" },
+  { id: "company", label: "Company" },
+  { id: "you", label: "You" },
+  { id: "models", label: "AI models" },
   { id: "privacy", label: "Privacy & data" },
   { id: "danger", label: "Danger zone" },
 ];
 
 export function Settings({
   user,
+  company,
   theme,
   onTheme,
   onUser,
+  onCompany,
 }: {
   user: User;
+  company: Company;
   theme: string;
   onTheme: (theme: string) => void;
   onUser: (user: User) => void;
+  onCompany: (company: Company) => void;
 }) {
   const { push } = useToast();
-  const [tab, setTab] = useState("profile");
+  const [tab, setTab] = useState("company");
   const [name, setName] = useState(user.name);
   const [busy, setBusy] = useState(false);
   const [sessions, setSessions] = useState<Session[] | null>(null);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [confirmText, setConfirmText] = useState("");
+  const [providers, setProviders] = useState<Provider[]>([]);
+
+  const [companyName, setCompanyName] = useState(company.name);
+  const [website, setWebsite] = useState(company.website);
+  const [supportEmail, setSupportEmail] = useState(company.support_email);
+  const [description, setDescription] = useState(company.description);
+  const [audience, setAudience] = useState(company.audience);
+  const [tone, setTone] = useState(company.tone || "Friendly");
 
   useEffect(() => {
-    if (tab !== "signin" || sessions !== null) return;
+    setCompanyName(company.name);
+    setWebsite(company.website);
+    setSupportEmail(company.support_email);
+    setDescription(company.description);
+    setAudience(company.audience);
+    setTone(company.tone || "Friendly");
+  }, [company]);
+
+  useEffect(() => {
+    if (tab !== "you" || sessions !== null) return;
     api
       .sessions()
       .then((result) => setSessions(result.sessions))
       .catch(() => setSessions([]));
   }, [tab, sessions]);
+
+  useEffect(() => {
+    if (tab !== "models" || providers.length > 0) return;
+    api
+      .providers()
+      .then((result) => setProviders(result.providers))
+      .catch(() => setProviders([]));
+  }, [tab, providers.length]);
+
+  async function saveCompany(event: React.FormEvent) {
+    event.preventDefault();
+    if (companyName.trim().length === 0) return;
+
+    setBusy(true);
+    try {
+      const result = await api.updateCompany(company.id, {
+        name: companyName.trim(),
+        website: website.trim(),
+        supportEmail: supportEmail.trim(),
+        description: description.trim(),
+        audience: audience.trim(),
+        tone,
+      });
+      onCompany(result.company);
+      push("Company saved.");
+    } catch (err) {
+      push(err instanceof ApiError ? err.message : "We couldn't save that.", "error");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   async function saveName(event: React.FormEvent) {
     event.preventDefault();
@@ -59,9 +114,6 @@ export function Settings({
     try {
       await api.revokeSession(session.id);
       push("That device is signed out.");
-
-      // Refreshing proves whether this browser was the one revoked; a 401 here
-      // sends the app back to sign-in instead of leaving a dead session on screen.
       const result = await api.sessions();
       setSessions(result.sessions);
     } catch (err) {
@@ -88,6 +140,17 @@ export function Settings({
     }
   }
 
+  async function deleteCompany() {
+    setBusy(true);
+    try {
+      await api.deleteCompany(company.id);
+      window.location.assign("/");
+    } catch (err) {
+      push(err instanceof ApiError ? err.message : "We couldn't delete this company.", "error");
+      setBusy(false);
+    }
+  }
+
   async function deleteEverything() {
     setBusy(true);
     try {
@@ -104,88 +167,144 @@ export function Settings({
       <header className="page-head">
         <div>
           <h1 className="page-title">Settings</h1>
-          <p className="page-sub">Your account, your devices, and your data.</p>
+          <p className="page-sub">{company.name} · your account, your models, your data.</p>
         </div>
       </header>
 
       <Tabs items={tabs} active={tab} onChange={setTab} />
 
-      {tab === "profile" ? (
-        <section className="card" style={{ maxWidth: 560 }}>
-          <h2 className="section-title mb-16">Your profile</h2>
+      {tab === "company" ? (
+        <section className="card" style={{ maxWidth: 680 }}>
+          <h2 className="section-title mb-8">Company details</h2>
+          <p className="small muted mb-16">Your helpers read this before every task. Keep it current.</p>
 
-          <form onSubmit={saveName}>
-            <Field label="Your name" htmlFor="profile-name">
-              <Input id="profile-name" value={name} maxLength={60} onChange={(event) => setName(event.target.value)} />
+          <form onSubmit={saveCompany}>
+            <div className="form-grid">
+              <Field label="Company name" htmlFor="settings-company-name">
+                <Input
+                  id="settings-company-name"
+                  value={companyName}
+                  maxLength={80}
+                  onChange={(event) => setCompanyName(event.target.value)}
+                />
+              </Field>
+              <Field label="Website" htmlFor="settings-company-website">
+                <Input id="settings-company-website" value={website} onChange={(event) => setWebsite(event.target.value)} />
+              </Field>
+              <Field label="Support email" htmlFor="settings-company-support">
+                <Input
+                  id="settings-company-support"
+                  type="email"
+                  value={supportEmail}
+                  onChange={(event) => setSupportEmail(event.target.value)}
+                />
+              </Field>
+              <Field label="Who do you serve?" htmlFor="settings-company-audience">
+                <Input
+                  id="settings-company-audience"
+                  value={audience}
+                  onChange={(event) => setAudience(event.target.value)}
+                />
+              </Field>
+            </div>
+
+            <Field label="What does the business do?" htmlFor="settings-company-description">
+              <Textarea
+                id="settings-company-description"
+                rows={4}
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
             </Field>
 
-            <Field label="Email" hint="This is how you sign in. It's managed by PayTrackify." htmlFor="profile-email">
-              <Input id="profile-email" value={user.email} readOnly disabled />
+            <Field label="Tone" htmlFor="settings-company-tone">
+              <Select id="settings-company-tone" value={tone} onChange={(event) => setTone(event.target.value)}>
+                {tones.map((item) => (
+                  <option key={item} value={item}>
+                    {item}
+                  </option>
+                ))}
+              </Select>
             </Field>
-
-            <p className="tiny muted mb-16">With Crew since {shortDate(user.created_at)}.</p>
 
             <Button type="submit" variant="primary" loading={busy}>
-              Save changes
+              Save company
             </Button>
           </form>
         </section>
       ) : null}
 
-      {tab === "signin" ? (
-        <section className="card">
-          <h2 className="section-title mb-8">Sign-in & devices</h2>
-          <p className="small muted mb-16">
-            You sign in with a code sent to your email — there is no password to change. Sign out any device you
-            don't recognise.
-          </p>
+      {tab === "you" ? (
+        <div className="stack" style={{ maxWidth: 680 }}>
+          <section className="card">
+            <h2 className="section-title mb-16">Your profile</h2>
+            <form onSubmit={saveName}>
+              <Field label="Your name" htmlFor="profile-name">
+                <Input id="profile-name" value={name} maxLength={60} onChange={(event) => setName(event.target.value)} />
+              </Field>
+              <Field label="Email" hint="This is how you sign in. It's managed by PayTrackify." htmlFor="profile-email">
+                <Input id="profile-email" value={user.email} readOnly disabled />
+              </Field>
+              <p className="tiny muted mb-16">With Crew since {shortDate(user.created_at)}.</p>
+              <Button type="submit" variant="primary" loading={busy}>
+                Save name
+              </Button>
+            </form>
+          </section>
 
-          {sessions === null ? (
-            <div className="skeleton" style={{ height: 48 }} />
-          ) : sessions.length === 0 ? (
-            <p className="small muted">No other devices are signed in.</p>
-          ) : (
-            <div className="list">
-              {sessions.map((session) => (
-                <div className="row" key={session.id} style={{ cursor: "default" }}>
-                  <span className="avatar" aria-hidden="true">
-                    🖥️
-                  </span>
-                  <span className="row-main">
-                    <span className="row-title">{session.device}</span>
-                    <span className="row-meta">
-                      {session.ip_address} · last used {relativeTime(session.last_used_at)}
+          <section className="card">
+            <h2 className="section-title mb-8">Appearance</h2>
+            <Field label="Theme" hint="Crew also follows your device's reduced-motion setting." htmlFor="theme">
+              <Select id="theme" value={theme} onChange={(event) => onTheme(event.target.value)}>
+                <option value="system">Match my device</option>
+                <option value="light">Light</option>
+                <option value="dark">Dark</option>
+              </Select>
+            </Field>
+          </section>
+
+          <section className="card">
+            <h2 className="section-title mb-8">Sign-in & devices</h2>
+            <p className="small muted mb-16">
+              You sign in with a code sent to your email — there is no password. Sign out any device you don't
+              recognise.
+            </p>
+
+            {sessions === null ? (
+              <div className="skeleton" style={{ height: 48 }} />
+            ) : sessions.length === 0 ? (
+              <p className="small muted">No other devices are signed in.</p>
+            ) : (
+              <div className="list">
+                {sessions.map((session) => (
+                  <div className="row" key={session.id} style={{ cursor: "default" }}>
+                    <span className="avatar" aria-hidden="true">
+                      🖥️
                     </span>
-                  </span>
-                  <Button size="sm" variant="quiet" onClick={() => revoke(session)} disabled={busy}>
-                    Sign out
-                  </Button>
-                </div>
-              ))}
-            </div>
-          )}
+                    <span className="row-main">
+                      <span className="row-title">{session.device}</span>
+                      <span className="row-meta">
+                        {session.ip_address} · last used {relativeTime(session.last_used_at)}
+                      </span>
+                    </span>
+                    <Button size="sm" variant="quiet" onClick={() => revoke(session)} disabled={busy}>
+                      Sign out
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
 
-          <p className="tiny muted mt-16">
-            This browser is one of these devices. Signing it out here also signs you out.
-          </p>
-        </section>
+            <p className="tiny muted mt-16">
+              This browser is one of these devices. Signing it out here also signs you out.
+            </p>
+          </section>
+        </div>
       ) : null}
 
-      {tab === "preferences" ? (
-        <section className="card" style={{ maxWidth: 560 }}>
-          <h2 className="section-title mb-16">Preferences</h2>
-
-          <Field label="Appearance" hint="Crew also follows your system setting for reduced motion." htmlFor="theme">
-            <Select id="theme" value={theme} onChange={(event) => onTheme(event.target.value)}>
-              <option value="system">Match my device</option>
-              <option value="light">Light</option>
-              <option value="dark">Dark</option>
-            </Select>
-          </Field>
-
-          <p className="tiny muted">
-            That's it for now. We add settings only when they earn their place.
-          </p>
+      {tab === "models" ? (
+        <section style={{ maxWidth: 900 }}>
+          <ModelsPanel onConfigured={() => setProviders([])} />
         </section>
       ) : null}
 
@@ -193,14 +312,14 @@ export function Settings({
         <section className="card" style={{ maxWidth: 620 }}>
           <h2 className="section-title mb-8">Privacy & data</h2>
           <p className="small muted mb-16">
-            Crew stores your tasks, helpers, and activity. Your sign-in details live with PayTrackify. You can take
-            your data with you at any time.
+            Crew stores your companies, tasks, helpers and activity. Your sign-in details live with PayTrackify. AI
+            keys are encrypted at rest.
           </p>
 
           <div className="row-between mb-16">
             <div>
               <div style={{ fontWeight: 600 }}>Download my data</div>
-              <div className="tiny muted">A JSON file with your tasks, helpers, and activity.</div>
+              <div className="tiny muted">A JSON file with every company, task, note and activity entry.</div>
             </div>
             <Button onClick={download}>Download</Button>
           </div>
@@ -214,24 +333,37 @@ export function Settings({
       ) : null}
 
       {tab === "danger" ? (
-        <section className="card danger-zone" style={{ maxWidth: 620 }}>
-          <h2 className="section-title mb-8" style={{ color: "var(--danger)" }}>
-            Delete my workspace
-          </h2>
-          <p className="small muted mb-16">
-            This erases your tasks, helpers, notes, and activity in Crew. Your PayTrackify account and its data stay
-            as they are. This can't be undone.
-          </p>
+        <div className="stack" style={{ maxWidth: 620 }}>
+          <section className="card danger-zone">
+            <h2 className="section-title mb-8" style={{ color: "var(--danger)" }}>
+              Delete this company
+            </h2>
+            <p className="small muted mb-16">
+              Removes {company.name}, its helpers, tasks and notes. Your other companies and your account stay.
+            </p>
+            <Button variant="danger" onClick={deleteCompany} loading={busy}>
+              Delete {company.name}
+            </Button>
+          </section>
 
-          <Button variant="danger" onClick={() => setDeleteOpen(true)}>
-            Delete my workspace
-          </Button>
-        </section>
+          <section className="card danger-zone">
+            <h2 className="section-title mb-8" style={{ color: "var(--danger)" }}>
+              Delete my account data
+            </h2>
+            <p className="small muted mb-16">
+              Erases every company, task and helper in Crew. Your PayTrackify account stays as it is. This can't be
+              undone.
+            </p>
+            <Button variant="danger" onClick={() => setDeleteOpen(true)}>
+              Delete everything
+            </Button>
+          </section>
+        </div>
       ) : null}
 
       <Modal
         open={deleteOpen}
-        title="Delete your Crew workspace?"
+        title="Delete all Crew data?"
         onClose={() => setDeleteOpen(false)}
         footer={
           <>
@@ -250,7 +382,7 @@ export function Settings({
         }
       >
         <p className="modal-body">
-          Type <strong>delete</strong> to confirm. Your tasks, helpers, and notes will be removed immediately.
+          Type <strong>delete</strong> to confirm. Every company, task, helper and note will be removed.
         </p>
         <Field label="Type delete to confirm" htmlFor="confirm-delete">
           <Input

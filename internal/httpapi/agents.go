@@ -11,13 +11,36 @@ import (
 )
 
 var allowedRoles = map[string]bool{
-	"Researcher": true,
-	"Writer":     true,
-	"Coder":      true,
-	"Designer":   true,
-	"Planner":    true,
-	"Support":    true,
-	"Helper":     true,
+	"Operations":         true,
+	"Support":            true,
+	"Marketing":          true,
+	"Product":            true,
+	"Engineering":        true,
+	"Client success":     true,
+	"Delivery":           true,
+	"Editorial":          true,
+	"Production":         true,
+	"Audience":           true,
+	"Patient experience": true,
+	"Clinical support":   true,
+	"Sales":              true,
+	"Reputation":         true,
+	"Compliance":         true,
+	"Analysis":           true,
+	"Enrolment":          true,
+	"Teaching":           true,
+	"Community":          true,
+	"Reservations":       true,
+	"Guest experience":   true,
+	"Programs":           true,
+	"Volunteers":         true,
+	"Fundraising":        true,
+	"Researcher":         true,
+	"Writer":             true,
+	"Coder":              true,
+	"Designer":           true,
+	"Planner":            true,
+	"Helper":             true,
 }
 
 func hashKey(key string) string {
@@ -37,15 +60,15 @@ type agentView struct {
 }
 
 func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
-	id := identityFrom(r)
+	company := companyFrom(r)
 
-	agents, err := s.store.ListAgents(r.Context(), id.UserID)
+	agents, err := s.store.ListAgents(r.Context(), company.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load your helpers. Please refresh.")
 		return
 	}
 
-	tasks, err := s.store.ListTasks(r.Context(), id.UserID, "")
+	tasks, err := s.store.ListTasks(r.Context(), company.ID, "")
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load your helpers. Please refresh.")
 		return
@@ -82,6 +105,7 @@ func (s *Server) handleListAgents(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
+	company := companyFrom(r)
 
 	var body struct {
 		Name         string `json:"name"`
@@ -110,7 +134,7 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 		emoji = "🤖"
 	}
 
-	count, err := s.store.CountAgents(r.Context(), id.UserID)
+	count, err := s.store.CountAgents(r.Context(), company.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't add that helper. Please try again.")
 		return
@@ -122,14 +146,14 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 
 	key := newAgentKey()
 
-	agent, err := s.store.CreateAgent(r.Context(), id.UserID, name, role, emoji,
+	agent, err := s.store.CreateAgent(r.Context(), id.UserID, company.ID, name, role, emoji,
 		trim(body.Instructions, 4000), hashKey(key))
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't add that helper. Please try again.")
 		return
 	}
 
-	_ = s.store.AddActivity(r.Context(), id.UserID, "agent_created", "You added "+agent.Name, "", agent.ID)
+	_ = s.store.AddActivity(r.Context(), id.UserID, company.ID, "agent_created", "You added "+agent.Name, "", agent.ID)
 
 	writeJSON(w, http.StatusCreated, map[string]any{
 		"ok": true,
@@ -137,21 +161,20 @@ func (s *Server) handleCreateAgent(w http.ResponseWriter, r *http.Request) {
 			Agent:  agent,
 			Status: "not_connected",
 		},
-		"apiKey": key, // shown once; only the hash is stored
+		"apiKey": key,
 	})
 }
 
 func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
-	id := identityFrom(r)
-	agentID := r.PathValue("id")
+	company := companyFrom(r)
 
-	agent, err := s.store.GetAgent(r.Context(), id.UserID, agentID)
+	agent, err := s.store.GetAgent(r.Context(), company.ID, r.PathValue("id"))
 	if err != nil {
 		writeError(w, http.StatusNotFound, "That helper doesn't exist.")
 		return
 	}
 
-	tasks, err := s.store.OpenTasksForAgent(r.Context(), agentID)
+	tasks, err := s.store.OpenTasksForAgent(r.Context(), company.ID, agent.ID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't load that helper. Please refresh.")
 		return
@@ -166,20 +189,22 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
-	id := identityFrom(r)
+	company := companyFrom(r)
 	agentID := r.PathValue("id")
 
-	current, err := s.store.GetAgent(r.Context(), id.UserID, agentID)
+	current, err := s.store.GetAgent(r.Context(), company.ID, agentID)
 	if err != nil {
 		writeError(w, http.StatusNotFound, "That helper doesn't exist.")
 		return
 	}
 
 	var body struct {
-		Name         *string `json:"name"`
-		Role         *string `json:"role"`
-		Emoji        *string `json:"emoji"`
-		Instructions *string `json:"instructions"`
+		Name          *string `json:"name"`
+		Role          *string `json:"role"`
+		Emoji         *string `json:"emoji"`
+		Instructions  *string `json:"instructions"`
+		ModelProvider *string `json:"modelProvider"`
+		ModelName     *string `json:"modelName"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -212,7 +237,19 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 		instructions = trim(*body.Instructions, 4000)
 	}
 
-	agent, err := s.store.UpdateAgent(r.Context(), id.UserID, agentID, name, role, emoji, instructions)
+	provider := current.ModelProvider
+	model := current.ModelName
+	if body.ModelProvider != nil {
+		provider = strings.TrimSpace(*body.ModelProvider)
+	}
+	if body.ModelName != nil {
+		model = strings.TrimSpace(*body.ModelName)
+	}
+	if provider == "" {
+		model = ""
+	}
+
+	agent, err := s.store.UpdateAgent(r.Context(), company.ID, agentID, name, role, emoji, instructions, provider, model)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't save that. Please try again.")
 		return
@@ -223,25 +260,25 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleDeleteAgent(w http.ResponseWriter, r *http.Request) {
 	id := identityFrom(r)
-	agentID := r.PathValue("id")
+	company := companyFrom(r)
 
-	if err := s.store.DeleteAgent(r.Context(), id.UserID, agentID); err != nil {
+	if err := s.store.DeleteAgent(r.Context(), company.ID, r.PathValue("id")); err != nil {
 		writeError(w, http.StatusNotFound, "That helper doesn't exist.")
 		return
 	}
 
-	_ = s.store.AddActivity(r.Context(), id.UserID, "agent_removed", "A helper was removed", "", "")
+	_ = s.store.AddActivity(r.Context(), id.UserID, company.ID, "agent_removed", "A helper was removed", "", "")
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (s *Server) handleRotateAgentKey(w http.ResponseWriter, r *http.Request) {
-	id := identityFrom(r)
+	company := companyFrom(r)
 	agentID := r.PathValue("id")
 
 	key := newAgentKey()
 
-	if err := s.store.RotateAgentKey(r.Context(), id.UserID, agentID, hashKey(key)); err != nil {
+	if err := s.store.RotateAgentKey(r.Context(), company.ID, agentID, hashKey(key)); err != nil {
 		writeError(w, http.StatusNotFound, "That helper doesn't exist.")
 		return
 	}

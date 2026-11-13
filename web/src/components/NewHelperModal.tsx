@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, type Agent } from "../api";
 import { Button, Field, Input, Modal, Select, Textarea, useToast } from "../ui";
-
-const roles = ["Researcher", "Writer", "Coder", "Designer", "Planner", "Support", "Helper"];
+import { roles } from "../roles";
 const emojis = ["🔎", "✍️", "💻", "🎨", "🗺️", "🛟"];
 
 export function NewHelperModal({

@@ -13,6 +13,7 @@ import (
 	"github.com/davepartner/crew/internal/config"
 	"github.com/davepartner/crew/internal/httpapi"
 	"github.com/davepartner/crew/internal/payauth"
+	"github.com/davepartner/crew/internal/secret"
 	"github.com/davepartner/crew/internal/store"
 )
 
@@ -33,7 +34,14 @@ func main() {
 	defer st.Close()
 
 	client := payauth.NewClient(cfg.PaytrackifyURL, cfg.PaytrackifyTime)
-	server := httpapi.New(cfg, st, client)
+
+	cipher, err := secret.LoadOrCreate(cfg.DBPath+".secret", cfg.SecretKey)
+	if err != nil {
+		slog.Error("load encryption key", "err", err)
+		os.Exit(1)
+	}
+
+	server := httpapi.New(cfg, st, client, cipher)
 
 	httpServer := &http.Server{
 		Addr:              cfg.Addr,

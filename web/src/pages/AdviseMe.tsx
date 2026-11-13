@@ -750,7 +750,11 @@ function FinancialCard({ currency }: { currency: string }) {
           <h2 className="section-title" style={{ marginTop: 3 }}>Numbers the study can use</h2>
           <p className="small muted">Revenue, margin, burn and runway. Mark audited accounts when you have them.</p>
         </div>
-        {model ? <span className={`badge ${model.quality === "Audited" ? "badge-done" : "badge-working"}`}>{model.quality}</span> : null}
+        {model ? (
+          <span className={`badge ${snapshots[0]?.audit_status === "verified" || model.quality === "Audited" ? "badge-done" : "badge-working"}`}>
+            {snapshots[0]?.audit_status === "verified" ? "Verified against statement" : model.quality}
+          </span>
+        ) : null}
       </div>
 
       {loading ? <Skeleton lines={3} /> : null}
@@ -845,6 +849,7 @@ function FinancialCard({ currency }: { currency: string }) {
         onAudited={(snapshot) => {
           setSnapshots((current) => current.map((item) => (item.id === snapshot.id ? snapshot : item)));
           setAuditOpen(false);
+          void api.financials().then((result) => setModel(result.model)).catch(() => undefined);
           push(snapshot.audit_status === "verified" ? "Verified against the statement." : "Evidence attached. Check the note.");
         }}
       />

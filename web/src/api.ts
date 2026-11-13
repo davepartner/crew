@@ -570,6 +570,13 @@ export const api = {
     return payload as { file: CompanyFile };
   },
   deleteFile: (id: string) => request<{ ok: boolean }>(`/api/files/${id}`, { method: "DELETE" }),
+  downloadFile: async (id: string) => {
+    const headers = new Headers();
+    if (activeCompany) headers.set("X-Crew-Company", activeCompany);
+    const response = await fetch(`/api/files/${id}/download`, { headers, credentials: "same-origin" });
+    if (!response.ok) throw new ApiError("We couldn't download that file.", response.status);
+    return response.blob();
+  },
   financials: () =>
     request<{ ok: boolean; snapshots: FinancialSnapshot[]; model: FinancialModel | null }>("/api/financials"),
   saveFinancials: (input: Omit<FinancialSnapshot, "id" | "created_at">) =>

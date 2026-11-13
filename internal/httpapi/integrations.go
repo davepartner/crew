@@ -179,6 +179,9 @@ func validIntegration(kind string) bool {
 
 func integrationReady(kind string, config map[string]string) bool {
 	for _, field := range integrationFields(kind) {
+		if field == "default_to" || field == "login_customer_id" {
+			continue
+		}
 		if strings.TrimSpace(config[field]) == "" {
 			return false
 		}

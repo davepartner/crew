@@ -310,7 +310,7 @@ function CompanyPicker({
             <span style={{ minWidth: 0 }}>
               <span className="company-card-name">{item.name}</span>
               <span className="company-card-meta">
-                {item.country || "Country not set"} · {item.agent_count} helpers · {item.task_count} tasks
+                {item.is_product ? "Product · " : ""}{item.country || "Country not set"} · {item.agent_count} helpers · {item.task_count} tasks
               </span>
             </span>
             <span className="tiny muted">{item.role === "viewer" ? "View only" : "Open"}</span>
@@ -633,7 +633,24 @@ function FilesCard() {
                 <span className="advise-file-name">{file.name}</span>
                 <span className="tiny muted">{Math.ceil(file.size / 1024)} KB · {file.mime || "file"}</span>
               </span>
-              <a className="tiny" href={`/api/files/${file.id}/download`}>Download</a>
+              <button
+                className="link-button tiny"
+                onClick={async () => {
+                  try {
+                    const blob = await api.downloadFile(file.id);
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement("a");
+                    link.href = url;
+                    link.download = file.name;
+                    link.click();
+                    URL.revokeObjectURL(url);
+                  } catch {
+                    setError("We couldn't download that file.");
+                  }
+                }}
+              >
+                Download
+              </button>
               <button
                 className="link-button"
                 onClick={async () => {

@@ -232,15 +232,18 @@ func (s *Store) CreateProduct(ctx context.Context, userID, parentID, name, descr
 	}
 
 	product, err := s.CreateCompany(ctx, ownerID, CompanyInput{
-		Name:        name,
-		BusinessKey: parent.BusinessKey,
-		Website:     website,
-		Description: description,
-		Audience:    audience,
-		Tone:        parent.Tone,
-		Country:     parent.Country,
-		ParentID:    parent.ID,
-		IsProduct:   true,
+		Name:             name,
+		BusinessKey:      parent.BusinessKey,
+		Website:          website,
+		Description:      description,
+		Audience:         audience,
+		Tone:             parent.Tone,
+		Country:          parent.Country,
+		Ticker:           parent.Ticker,
+		ParentID:         parent.ID,
+		IsProduct:        true,
+		MonthlyTaskLimit: parent.MonthlyTaskLimit,
+		MonthlyBudgetUSD: parent.MonthlyBudgetUSD,
 	})
 	if err != nil {
 		return Company{}, err

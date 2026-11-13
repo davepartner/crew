@@ -62,6 +62,27 @@ India and the UAE, with a generic fallback. They cover registration, tax,
 payments, ad rules and data protection. They are general guidance, not legal,
 tax or investment advice.
 
+## Files and financials
+
+**Company files** accepts up to 20 files (10 MB each). Text, CSV and JSON are
+read by the study and the chat; PDFs and images are stored but not parsed yet.
+Files can be downloaded or removed.
+
+**Financial model** accepts one month of revenue, cost of sales, operating
+costs, cash, receivables and payables. Crew computes gross profit and margin,
+net profit, runway, break-even sales and annualised revenue. Mark a snapshot
+**audited** only when the numbers come from audited statements; otherwise the
+card says management accounts or estimate.
+
+Adding a file, a financial snapshot or changing the company profile clears the
+cached deep study so the next run uses the new evidence.
+
+## Products
+
+A company can own multiple products. Each product is a full workspace with its
+own helpers, tasks, routines, goals, marketing, Ads Studio and Advise Me.
+See `docs/products.md`.
+
 ## Floating chat
 
 The advisor reads the company profile, stage, score, actions, helpers, recent
@@ -70,10 +91,19 @@ tasks and campaigns, plus:
 - the company's own website
 - Wikipedia summaries for the country and business type
 - Wikipedia search results for the question
+- live Google News results for the industry (or Brave Search when a key is connected)
+- a live market quote when the company has a public ticker
 
 Answers cite those sources. It is told to say “I don't know” when the data does
 not support an answer. Every message is budgeted and recorded like other model
 calls.
+
+## Sending
+
+An **Email report** or **WhatsApp** button sends the study. Email uses the
+server SMTP relay. WhatsApp uses a connected WhatsApp Cloud API number and only
+works inside Meta's 24-hour customer window for free-form text. See
+`docs/integrations.md`.
 
 ## Sources
 

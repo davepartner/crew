@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"html"
 	"net/http"
 	"net/url"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -191,6 +194,11 @@ func (s *Server) handleAdviceChat(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	for _, result := range wikiSearch(r.Context(), message, 2) {
+		webContext += "\n\nWIKIPEDIA — " + result.Title + ":\n" + result.Snippet
+		sources = append(sources, chatSource{Title: "Wikipedia: " + result.Title, URL: result.URL})
+	}
+
 	contextJSON, _ := json.Marshal(map[string]any{
 		"company": company, "stage": report.StageLabel, "score": report.Score,
 		"next": report.Next, "sections": report.Sections,
@@ -326,6 +334,71 @@ func wikiSummary(ctx context.Context, title string) (string, string, bool) {
 		return "", "", false
 	}
 	return payload.Extract, payload.ContentURLs.Desktop.Page, true
+}
+
+type wikiResult struct {
+	Title   string
+	Snippet string
+	URL     string
+}
+
+var wikiTagPattern = regexp.MustCompile(`<[^>]+>`)
+
+func wikiSearch(ctx context.Context, query string, limit int) []wikiResult {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return nil
+	}
+	if len([]rune(query)) > 180 {
+		query = string([]rune(query)[:180])
+	}
+
+	endpoint := "https://en.wikipedia.org/w/api.php?action=query&list=search&format=json&utf8=1&srsearch=" +
+		url.QueryEscape(query) + "&srlimit=2"
+	if limit <= 0 || limit > 3 {
+		limit = 2
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	if err != nil {
+		return nil
+	}
+	request.Header.Set("User-Agent", "CrewAdvisor/1.0 (https://crew.paytrackify.com)")
+	request.Header.Set("Accept", "application/json")
+
+	client := &http.Client{Timeout: 5 * time.Second}
+	response, err := client.Do(request)
+	if err != nil || response.StatusCode != http.StatusOK {
+		return nil
+	}
+	defer response.Body.Close()
+
+	var payload struct {
+		Query struct {
+			Search []struct {
+				Title   string `json:"title"`
+				Snippet string `json:"snippet"`
+				PageID  int    `json:"pageid"`
+			} `json:"search"`
+		} `json:"query"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+		return nil
+	}
+
+	out := make([]wikiResult, 0, limit)
+	for _, item := range payload.Query.Search {
+		if len(out) >= limit {
+			break
+		}
+		snippet := html.UnescapeString(wikiTagPattern.ReplaceAllString(item.Snippet, " "))
+		out = append(out, wikiResult{
+			Title:   item.Title,
+			Snippet: strings.Join(strings.Fields(snippet), " "),
+			URL:     "https://en.wikipedia.org/?curid=" + strconv.Itoa(item.PageID),
+		})
+	}
+	return out
 }
 
 var errNoModel = errors.New("no model")

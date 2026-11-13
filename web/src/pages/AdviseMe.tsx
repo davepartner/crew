@@ -2,7 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   api,
   ApiError,
-  rememberedCompany,
   setCompany as rememberCompany,
   type AdviceAgent,
   type AdviceReport,
@@ -48,10 +47,6 @@ export function AdviseMe() {
         setCompanies(result.companies);
         if (result.companies.length === 1) {
           setActiveCompany(result.companies[0]);
-        } else if (result.companies.length > 1) {
-          const remembered = rememberedCompany();
-          const found = result.companies.find((item) => item.id === remembered);
-          if (found) setActiveCompany(found);
         }
       })
       .catch(() => setCompanies([]))

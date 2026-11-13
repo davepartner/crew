@@ -69,6 +69,7 @@ tasks and campaigns, plus:
 
 - the company's own website
 - Wikipedia summaries for the country and business type
+- Wikipedia search results for the question
 
 Answers cite those sources. It is told to say “I don't know” when the data does
 not support an answer. Every message is budgeted and recorded like other model

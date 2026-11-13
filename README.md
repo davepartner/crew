@@ -10,7 +10,7 @@ Crew is a small, calm control panel for running a company with AI helpers. Tell 
 business you run, and it sets up a team, their first tasks, and the context they need. Give
 them work; nothing ships until you say it's good.
 
-This is the rebuilt core of the Paperclip idea, with three deliberate changes:
+This is the rebuilt core of the Paperclip idea, with five deliberate changes:
 
 1. **You must sign in.** Every screen and every API call is behind a session. Sign-in is
    passwordless — an 8-digit code by email, validated by PayTrackify.

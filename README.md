@@ -189,6 +189,7 @@ credential.
 | `CREW_PLATFORM_MODEL` | `deepseek-chat` | Model used for the included provider. |
 | `CREW_PLATFORM_API_KEY` | empty | Server-side key for the included model. Never sent to helpers. |
 | `CREW_PLATFORM_BASE_URL` | provider URL | Override for a self-hosted OpenAI-compatible endpoint. |
+| `CREW_DEFAULT_AI_BUDGET_USD` | `2` | Monthly AI budget for a new company; protects a shared key. |
 | `CREW_WEB_DIR` | embedded | Serve a different UI folder (useful for previews). |
 
 PayTrackify side (`email-finance/.env`):

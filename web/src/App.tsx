@@ -191,7 +191,6 @@ function Shell({
   const [notifOpen, setNotifOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const companyRef = useRef<HTMLDivElement>(null);
-  const notifRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSidebarOpen(false);
@@ -233,20 +232,6 @@ function Shell({
       window.clearInterval(timer);
     };
   }, [path, company.id]);
-
-  useEffect(() => {
-    if (!notifOpen) return;
-    const onClick = (event: MouseEvent) => {
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) setNotifOpen(false);
-    };
-    const onKey = (event: KeyboardEvent) => event.key === "Escape" && setNotifOpen(false);
-    document.addEventListener("mousedown", onClick);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onClick);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [notifOpen]);
 
   useEffect(() => {
     if (!companyOpen) return;
@@ -357,6 +342,18 @@ function Shell({
         </nav>
 
         <div className="nav-bottom">
+          <button
+            className="nav-item"
+            onClick={() => setNotifOpen(true)}
+            aria-label={unread > 0 ? `${unread} unread notifications` : "Notifications"}
+          >
+            <span className="icon" aria-hidden="true">
+              ◔
+            </span>
+            <span className="grow">Notifications</span>
+            {unread > 0 ? <span className="notif-count inline">{unread > 9 ? "9+" : unread}</span> : null}
+          </button>
+
           <Link
             to="/settings"
             className="nav-item"
@@ -436,71 +433,16 @@ function Shell({
           <span className="brand-name">{company.name}</span>
           {company.role === "viewer" ? <span className="badge badge-todo">View only</span> : null}
 
-          <div ref={notifRef} style={{ position: "relative", marginLeft: "auto" }}>
-            <button
-              className="btn btn-quiet btn-icon"
-              onClick={() => setNotifOpen((open) => !open)}
-              aria-label={unread > 0 ? `${unread} unread notifications` : "Notifications"}
-              aria-expanded={notifOpen}
-              style={{ position: "relative" }}
-            >
-              ◔
-              {unread > 0 ? <span className="notif-count">{unread > 9 ? "9+" : unread}</span> : null}
-            </button>
+          <button
+            className="btn btn-quiet btn-icon"
+            onClick={() => setNotifOpen(true)}
+            aria-label={unread > 0 ? `${unread} unread notifications` : "Notifications"}
+            style={{ marginLeft: "auto", position: "relative" }}
+          >
+            ◔
+            {unread > 0 ? <span className="notif-count">{unread > 9 ? "9+" : unread}</span> : null}
+          </button>
 
-            {notifOpen ? (
-              <div className="card notif-panel" role="menu">
-                <div className="row-between" style={{ padding: "4px 6px 8px" }}>
-                  <strong className="small">Notifications</strong>
-                  {unread > 0 ? (
-                    <button
-                      className="link-button tiny"
-                      onClick={async () => {
-                        await api.readAllNotifications().catch(() => {});
-                        setNotifications((current) =>
-                          current.map((item) => ({ ...item, read_at: item.read_at ?? new Date().toISOString() })),
-                        );
-                        setUnread(0);
-                      }}
-                    >
-                      Mark all read
-                    </button>
-                  ) : null}
-                </div>
-
-                {notifications.length === 0 ? (
-                  <p className="small muted" style={{ padding: "8px 6px" }}>
-                    Nothing yet. Reviews and teardowns show up here.
-                  </p>
-                ) : (
-                  notifications.map((item) => (
-                    <button
-                      key={item.id}
-                      className={`notif-item ${item.read_at ? "" : "unread"}`}
-                      onClick={async () => {
-                        if (!item.read_at) {
-                          await api.readNotification(item.id).catch(() => {});
-                          setNotifications((current) =>
-                            current.map((entry) =>
-                              entry.id === item.id
-                                ? { ...entry, read_at: new Date().toISOString() }
-                                : entry,
-                            ),
-                          );
-                          setUnread((count) => Math.max(0, count - 1));
-                        }
-                        setNotifOpen(false);
-                        if (item.task_id) navigate(`/tasks/${item.task_id}`);
-                      }}
-                    >
-                      <span className="notif-title">{item.title}</span>
-                      {item.body ? <span className="notif-body">{item.body}</span> : null}
-                    </button>
-                  ))
-                )}
-              </div>
-            ) : null}
-          </div>
           <Link to="/settings" aria-label="Settings">
             <span className="avatar avatar-sm" aria-hidden="true">
               {initials || "?"}
@@ -521,6 +463,27 @@ function Shell({
           />
         </main>
       </div>
+
+      <NotificationsModal
+        open={notifOpen}
+        items={notifications}
+        unread={unread}
+        onClose={() => setNotifOpen(false)}
+        onRead={(id) => {
+          setNotifications((current) =>
+            current.map((entry) => (entry.id === id ? { ...entry, read_at: new Date().toISOString() } : entry)),
+          );
+          setUnread((count) => Math.max(0, count - 1));
+          void api.readNotification(id).catch(() => {});
+        }}
+        onReadAll={() => {
+          setNotifications((current) =>
+            current.map((entry) => ({ ...entry, read_at: entry.read_at ?? new Date().toISOString() })),
+          );
+          setUnread(0);
+          void api.readAllNotifications().catch(() => {});
+        }}
+      />
 
       <SignOutModal
         open={signOutOpen}
@@ -646,6 +609,60 @@ function SignOutModal({
           </option>
         ))}
       </Select>
+    </Modal>
+  );
+}
+
+
+function NotificationsModal({
+  open,
+  items,
+  unread,
+  onClose,
+  onRead,
+  onReadAll,
+}: {
+  open: boolean;
+  items: Notification[];
+  unread: number;
+  onClose: () => void;
+  onRead: (id: string) => void;
+  onReadAll: () => void;
+}) {
+  return (
+    <Modal
+      open={open}
+      title="Notifications"
+      onClose={onClose}
+      footer={
+        <>
+          {unread > 0 ? <Button onClick={onReadAll}>Mark all read</Button> : null}
+          <Button variant="primary" onClick={onClose}>
+            Close
+          </Button>
+        </>
+      }
+    >
+      {items.length === 0 ? (
+        <p className="modal-body">Nothing yet. Reviews and marketing teardowns show up here.</p>
+      ) : (
+        <div className="list">
+          {items.map((item) => (
+            <button
+              key={item.id}
+              className={`notif-item ${item.read_at ? "" : "unread"}`}
+              onClick={() => {
+                onRead(item.id);
+                onClose();
+                if (item.task_id) navigate(`/tasks/${item.task_id}`);
+              }}
+            >
+              <span className="notif-title">{item.title}</span>
+              {item.body ? <span className="notif-body">{item.body}</span> : null}
+            </button>
+          ))}
+        </div>
+      )}
     </Modal>
   );
 }

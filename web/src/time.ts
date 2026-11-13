@@ -37,3 +37,10 @@ export function clock(seconds: number): string {
   const safe = Math.max(0, seconds);
   return `0:${String(safe).padStart(2, "0")}`;
 }
+
+
+export function money(value: number | null | undefined): string {
+  if (!value || value <= 0) return "$0.00";
+  if (value < 0.01) return "<$0.01";
+  return "$" + value.toFixed(2);
+}

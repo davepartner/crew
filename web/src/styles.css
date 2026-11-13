@@ -995,6 +995,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 /* ---------- notifications ---------- */
 
+.notif-count.inline { position: static; margin-left: auto; }
 .notif-count {
   position: absolute;
   top: -2px;

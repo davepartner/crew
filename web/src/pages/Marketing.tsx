@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { api, ApiError, type Agent, type MarketingReport, type Playbook, type Skill } from "../api";
 import { Link, navigate } from "../router";
+import { money } from "../time";
 import { Button, Field, Input, Modal, Select, Tabs, Textarea, useToast } from "../ui";
 
 const tabs = [
@@ -360,6 +361,7 @@ function ReverseEngineer() {
                 </h2>
                 <p className="tiny muted">
                   {result.evidence.url} · {result.model} · {result.evidence.characters.toLocaleString()} characters read
+                  {result.cost ? ` · ${money(result.cost)}` : ""}
                   {result.evidence.truncated ? " (truncated)" : ""}
                 </p>
               </div>

@@ -10,42 +10,44 @@ import (
 // Config is everything the server needs. Values come from the environment so
 // the same binary runs locally, in Docker, and on a VPS without edits.
 type Config struct {
-	Addr             string
-	DBPath           string
-	PaytrackifyURL   string
-	PaytrackifyTime  time.Duration
-	SessionCacheTTL  time.Duration
-	SecureCookies    bool
-	TrustProxy       bool
-	TaskLease        time.Duration
-	SecretKey        string
-	PlatformProvider string
-	PlatformModel    string
-	PlatformBaseURL  string
-	PlatformAPIKey   string
-	WebDir           string
-	Env              string
-	ServiceName      string
+	Addr               string
+	DBPath             string
+	PaytrackifyURL     string
+	PaytrackifyTime    time.Duration
+	SessionCacheTTL    time.Duration
+	SecureCookies      bool
+	TrustProxy         bool
+	TaskLease          time.Duration
+	SecretKey          string
+	PlatformProvider   string
+	PlatformModel      string
+	PlatformBaseURL    string
+	PlatformAPIKey     string
+	DefaultAIBudgetUSD float64
+	WebDir             string
+	Env                string
+	ServiceName        string
 }
 
 func Load() Config {
 	cfg := Config{
-		Addr:             env("CREW_ADDR", "127.0.0.1:8787"),
-		DBPath:           env("CREW_DB", "data/crew.db"),
-		PaytrackifyURL:   strings.TrimRight(env("PAYTRACKIFY_URL", "http://127.0.0.1:8012"), "/"),
-		PaytrackifyTime:  envDuration("PAYTRACKIFY_TIMEOUT", 8*time.Second),
-		SessionCacheTTL:  envDuration("CREW_SESSION_CACHE_TTL", 60*time.Second),
-		SecureCookies:    envBool("CREW_SECURE_COOKIES", false),
-		TrustProxy:       envBool("CREW_TRUST_PROXY", false),
-		TaskLease:        envDuration("CREW_TASK_LEASE", time.Hour),
-		SecretKey:        env("CREW_SECRET_KEY", ""),
-		PlatformProvider: env("CREW_PLATFORM_PROVIDER", "deepseek"),
-		PlatformModel:    env("CREW_PLATFORM_MODEL", "deepseek-chat"),
-		PlatformBaseURL:  env("CREW_PLATFORM_BASE_URL", ""),
-		PlatformAPIKey:   env("CREW_PLATFORM_API_KEY", ""),
-		WebDir:           env("CREW_WEB_DIR", ""),
-		Env:              env("CREW_ENV", "development"),
-		ServiceName:      env("CREW_NAME", "Crew"),
+		Addr:               env("CREW_ADDR", "127.0.0.1:8787"),
+		DBPath:             env("CREW_DB", "data/crew.db"),
+		PaytrackifyURL:     strings.TrimRight(env("PAYTRACKIFY_URL", "http://127.0.0.1:8012"), "/"),
+		PaytrackifyTime:    envDuration("PAYTRACKIFY_TIMEOUT", 8*time.Second),
+		SessionCacheTTL:    envDuration("CREW_SESSION_CACHE_TTL", 60*time.Second),
+		SecureCookies:      envBool("CREW_SECURE_COOKIES", false),
+		TrustProxy:         envBool("CREW_TRUST_PROXY", false),
+		TaskLease:          envDuration("CREW_TASK_LEASE", time.Hour),
+		SecretKey:          env("CREW_SECRET_KEY", ""),
+		PlatformProvider:   env("CREW_PLATFORM_PROVIDER", "deepseek"),
+		PlatformModel:      env("CREW_PLATFORM_MODEL", "deepseek-chat"),
+		PlatformBaseURL:    env("CREW_PLATFORM_BASE_URL", ""),
+		PlatformAPIKey:     env("CREW_PLATFORM_API_KEY", ""),
+		DefaultAIBudgetUSD: envFloat("CREW_DEFAULT_AI_BUDGET_USD", 2),
+		WebDir:             env("CREW_WEB_DIR", ""),
+		Env:                env("CREW_ENV", "development"),
+		ServiceName:        env("CREW_NAME", "Crew"),
 	}
 
 	if cfg.SecureCookies || cfg.Env == "production" {
@@ -73,6 +75,18 @@ func envBool(key string, fallback bool) bool {
 	}
 	parsed, err := strconv.ParseBool(v)
 	if err != nil {
+		return fallback
+	}
+	return parsed
+}
+
+func envFloat(key string, fallback float64) float64 {
+	v := strings.TrimSpace(os.Getenv(key))
+	if v == "" {
+		return fallback
+	}
+	parsed, err := strconv.ParseFloat(v, 64)
+	if err != nil || parsed < 0 {
 		return fallback
 	}
 	return parsed

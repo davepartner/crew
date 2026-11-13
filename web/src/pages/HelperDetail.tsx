@@ -3,7 +3,7 @@ import { api, ApiError, type Agent, type Provider, type Skill, type Task } from 
 import { NewTaskModal } from "../components/NewTaskModal";
 import { TaskRow } from "../components/rows";
 import { Link, navigate } from "../router";
-import { relativeTime } from "../time";
+import { money, relativeTime } from "../time";
 import { Avatar, Button, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from "../ui";
 import { statusLabel } from "./Helpers";
 import { roles } from "../roles";
@@ -372,8 +372,8 @@ export function HelperDetail({ id }: { id: string }) {
               A monthly cap for this helper's model calls. 0 means no limit. Estimates use public list prices.
             </p>
             <p className="small mb-16">
-              Spent this month: <strong>${spend.toFixed(2)}</strong>
-              {agent.monthly_budget_usd > 0 ? ` of $${agent.monthly_budget_usd.toFixed(2)}` : ""}
+              Spent this month: <strong>{money(spend)}</strong>
+              {agent.monthly_budget_usd > 0 ? ` of ${money(agent.monthly_budget_usd)}` : ""}
             </p>
             <label className="checkbox-row mb-16">
               <input

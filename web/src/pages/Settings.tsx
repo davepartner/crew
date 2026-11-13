@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, type Company, type Invite, type Member, type Provider, type Session, type User } from "../api";
 import { ModelsPanel } from "../components/ModelsPanel";
-import { relativeTime, shortDate } from "../time";
+import { money, relativeTime, shortDate } from "../time";
 import { Button, Field, Input, Modal, Select, Tabs, Textarea, useToast } from "../ui";
 
 const tones = ["Friendly", "Professional", "Playful", "Direct", "Warm"];
@@ -268,7 +268,7 @@ export function Settings({
 
             <Field
               label="Monthly AI budget (USD)"
-              hint={`Estimated model spend this month: $${(company.spend_usd ?? 0).toFixed(2)}. 0 means no limit.`}
+              hint={`Estimated model spend this month: ${money(company.spend_usd)}. 0 means no limit.`}
               htmlFor="settings-company-budget"
             >
               <Input

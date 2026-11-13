@@ -82,6 +82,7 @@ export type MarketingReport = {
   ok: boolean;
   report: string;
   model: string;
+  cost?: number;
   evidence: { url: string; title: string; description: string; characters: number; truncated: boolean };
   task?: Task;
 };

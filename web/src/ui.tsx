@@ -157,12 +157,14 @@ export function Modal({
   children,
   onClose,
   footer,
+  width,
 }: {
   open: boolean;
   title: string;
   children: ReactNode;
   onClose: () => void;
   footer?: ReactNode;
+  width?: number;
 }) {
   const titleId = useId();
   const closeRef = useRef<HTMLButtonElement>(null);
@@ -216,7 +218,14 @@ export function Modal({
 
   return (
     <div className="overlay" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="modal" role="dialog" aria-modal="true" aria-labelledby={titleId} ref={dialogRef}>
+      <div
+        className="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        ref={dialogRef}
+        style={width ? { maxWidth: width } : undefined}
+      >
         <div className="modal-head">
           <h2 className="modal-title" id={titleId}>
             {title}

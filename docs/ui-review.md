@@ -59,6 +59,16 @@ and 390×844, light and dark.
 - The model step labels free providers and links to each key page.
 - Consent for sharing business details with an AI provider is stated before creation.
 
+## Marketing
+
+- Two tabs: a searchable 53-skill library with category chips, and the teardown tool.
+- Skill cards show category, name and a three-line description; the full text opens in a modal
+  with a helper picker, capped at 8 skills per helper.
+- Teardown form asks for one URL, an optional question, a playbook and a helper. It explains
+  that only the page is read and unknowns are reported.
+- If no model key exists, the form says so before the person tries; the run button is disabled.
+- The report renders as pre-wrapped markdown in a scrollable panel with download and task links.
+
 ## Account surfaces
 
 - Company: name, website, support email, audience, description, tone.

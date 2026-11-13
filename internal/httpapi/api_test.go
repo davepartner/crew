@@ -798,3 +798,86 @@ func TestProviderKeyUnlocksTheHelperModel(t *testing.T) {
 		t.Fatalf("delete key: %d", status)
 	}
 }
+
+func TestSkillsLibraryAndHelperBriefing(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var library struct {
+		Count     int              `json:"count"`
+		Skills    []map[string]any `json:"skills"`
+		Playbooks []map[string]any `json:"playbooks"`
+	}
+	status, raw := b.do(t, http.MethodGet, "/api/skills", nil, &library)
+	if status != 200 {
+		t.Fatalf("skills: %d %s", status, raw)
+	}
+	if library.Count != 53 || len(library.Skills) != 53 || len(library.Playbooks) != 10 {
+		t.Fatalf("library: count=%d skills=%d playbooks=%d", library.Count, len(library.Skills), len(library.Playbooks))
+	}
+
+	var created struct {
+		Agent  map[string]any `json:"agent"`
+		APIKey string         `json:"apiKey"`
+	}
+	b.do(t, http.MethodPost, "/api/agents", map[string]any{
+		"name": "Ada", "role": "Marketing", "skills": []string{"copywriting"},
+	}, &created)
+	agentID, _ := created.Agent["id"].(string)
+
+	var updated struct {
+		Agent map[string]any `json:"agent"`
+	}
+	status, raw = b.do(t, http.MethodPatch, "/api/agents/"+agentID, map[string]any{
+		"skills": []string{"copywriting", "pricing"},
+	}, &updated)
+	if status != 200 {
+		t.Fatalf("update skills: %d %s", status, raw)
+	}
+	skillsValue, _ := updated.Agent["skills"].([]any)
+	if len(skillsValue) != 2 {
+		t.Fatalf("skills not saved: %v", updated.Agent["skills"])
+	}
+
+	var task struct {
+		Task map[string]any `json:"task"`
+	}
+	b.do(t, http.MethodPost, "/api/tasks", map[string]any{
+		"title": "Write a landing page", "agentId": agentID,
+	}, &task)
+
+	req, _ := http.NewRequest(http.MethodPost, h.base+"/api/runner/claim", nil)
+	req.Header.Set("Authorization", "Bearer "+created.APIKey)
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var claim struct {
+		Instructions string `json:"instructions"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&claim); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if !strings.Contains(claim.Instructions, "Marketing skills you can use") || !strings.Contains(claim.Instructions, "Copywriting") {
+		t.Fatalf("skills missing from briefing: %.200s", claim.Instructions)
+	}
+}
+
+func TestMarketingWithoutAKeyIsAConflict(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	status, raw := b.do(t, http.MethodPost, "/api/marketing/analyze", map[string]string{
+		"url": "https://example.com", "playbook": "funnel-monetization",
+	}, nil)
+	if status != 409 {
+		t.Fatalf("expected 409, got %d %s", status, raw)
+	}
+	if !strings.Contains(raw, "no_model") {
+		t.Fatalf("missing code: %s", raw)
+	}
+}

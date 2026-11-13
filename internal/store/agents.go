@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"time"
 )
 
@@ -16,11 +17,12 @@ type Agent struct {
 	Instructions  string     `json:"instructions"`
 	ModelProvider string     `json:"model_provider"`
 	ModelName     string     `json:"model_name"`
+	Skills        []string   `json:"skills"`
 	LastSeenAt    *time.Time `json:"last_seen_at"`
 	CreatedAt     time.Time  `json:"created_at"`
 }
 
-func (s *Store) CreateAgent(ctx context.Context, userID, companyID, name, role, emoji, instructions, keyHash string) (Agent, error) {
+func (s *Store) CreateAgent(ctx context.Context, userID, companyID, name, role, emoji, instructions string, skillKeys []string, keyHash string) (Agent, error) {
 	agent := Agent{
 		ID:           NewID(),
 		UserID:       userID,
@@ -29,14 +31,15 @@ func (s *Store) CreateAgent(ctx context.Context, userID, companyID, name, role, 
 		Role:         role,
 		Emoji:        emoji,
 		Instructions: instructions,
+		Skills:       skillKeys,
 		CreatedAt:    time.Now().UTC(),
 	}
 
 	_, err := s.db.ExecContext(ctx, `
-		INSERT INTO agents (id, user_id, company_id, name, role, emoji, instructions, api_key_hash, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		INSERT INTO agents (id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, skills, api_key_hash, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		agent.ID, userID, companyID, agent.Name, agent.Role, agent.Emoji, agent.Instructions,
-		keyHash, agent.CreatedAt.Format(TimeFormat),
+		"", "", encodeSkills(skillKeys), keyHash, agent.CreatedAt.Format(TimeFormat),
 	)
 	if err != nil {
 		return Agent{}, err
@@ -47,7 +50,7 @@ func (s *Store) CreateAgent(ctx context.Context, userID, companyID, name, role, 
 
 func (s *Store) ListAgents(ctx context.Context, companyID string) ([]Agent, error) {
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, last_seen_at, created_at
+		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, skills, last_seen_at, created_at
 		FROM agents WHERE company_id = ? ORDER BY created_at ASC`, companyID)
 	if err != nil {
 		return nil, err
@@ -74,7 +77,7 @@ func (s *Store) CountAgents(ctx context.Context, companyID string) (int, error) 
 
 func (s *Store) GetAgent(ctx context.Context, companyID, id string) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, last_seen_at, created_at
+		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, skills, last_seen_at, created_at
 		FROM agents WHERE company_id = ? AND id = ?`, companyID, id)
 
 	agent, err := scanAgent(row)
@@ -84,11 +87,11 @@ func (s *Store) GetAgent(ctx context.Context, companyID, id string) (Agent, erro
 	return agent, err
 }
 
-func (s *Store) UpdateAgent(ctx context.Context, companyID, id, name, role, emoji, instructions, modelProvider, modelName string) (Agent, error) {
+func (s *Store) UpdateAgent(ctx context.Context, companyID, id, name, role, emoji, instructions, modelProvider, modelName string, skillKeys []string) (Agent, error) {
 	_, err := s.db.ExecContext(ctx, `
-		UPDATE agents SET name = ?, role = ?, emoji = ?, instructions = ?, model_provider = ?, model_name = ?
+		UPDATE agents SET name = ?, role = ?, emoji = ?, instructions = ?, model_provider = ?, model_name = ?, skills = ?
 		WHERE company_id = ? AND id = ?`,
-		name, role, emoji, instructions, modelProvider, modelName, companyID, id)
+		name, role, emoji, instructions, modelProvider, modelName, encodeSkills(skillKeys), companyID, id)
 	if err != nil {
 		return Agent{}, err
 	}
@@ -123,7 +126,7 @@ func (s *Store) RotateAgentKey(ctx context.Context, companyID, id, keyHash strin
 // runner API. The key itself is the scope.
 func (s *Store) AgentForKeyHash(ctx context.Context, keyHash string) (Agent, error) {
 	row := s.db.QueryRowContext(ctx, `
-		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, last_seen_at, created_at
+		SELECT id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, skills, last_seen_at, created_at
 		FROM agents WHERE api_key_hash = ?`, keyHash)
 
 	agent, err := scanAgent(row)
@@ -147,8 +150,10 @@ func scanAgent(row scanner) (Agent, error) {
 	var lastSeen sql.NullString
 	var created string
 
+	var skillsRaw string
+
 	err := row.Scan(&agent.ID, &agent.UserID, &agent.CompanyID, &agent.Name, &agent.Role, &agent.Emoji,
-		&agent.Instructions, &agent.ModelProvider, &agent.ModelName, &lastSeen, &created)
+		&agent.Instructions, &agent.ModelProvider, &agent.ModelName, &skillsRaw, &lastSeen, &created)
 	if err != nil {
 		return Agent{}, err
 	}
@@ -158,6 +163,32 @@ func scanAgent(row scanner) (Agent, error) {
 		agent.LastSeenAt = &t
 	}
 	agent.CreatedAt = ParseTime(created)
+	agent.Skills = decodeSkills(skillsRaw)
 
 	return agent, nil
+}
+
+func encodeSkills(keys []string) string {
+	if len(keys) == 0 {
+		return "[]"
+	}
+	raw, err := json.Marshal(keys)
+	if err != nil {
+		return "[]"
+	}
+	return string(raw)
+}
+
+func decodeSkills(raw string) []string {
+	if raw == "" {
+		return []string{}
+	}
+	var keys []string
+	if err := json.Unmarshal([]byte(raw), &keys); err != nil {
+		return []string{}
+	}
+	if keys == nil {
+		return []string{}
+	}
+	return keys
 }

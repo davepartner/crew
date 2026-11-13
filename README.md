@@ -19,12 +19,16 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 3. **Plain words.** "Helpers", "tasks", "your OK". No agents, adapters, heartbeats, or runs.
 4. **A company, not a chat.** Onboarding asks what you run, builds a preset team of 3 helpers
    with starter tasks, and keeps every company separate. You can run as many as you like.
+5. **Marketing that ships.** 53 marketing playbooks attach to any helper, and a teardown tool
+   reads a competitor's site and writes the report a founder can copy.
 
 | | |
 |---|---|
 | Backend | Go 1.24, stdlib HTTP, SQLite (WAL) |
 | Companies | Unlimited per person, each with its own helpers, tasks and activity |
 | Presets | 66 business types across 11 categories, each with a 3-person team and 3 tasks |
+| Skills | 53 marketing skills (MIT) from Corey Haines' marketingskills, attached per helper |
+| Teardowns | Reverse Engineer Marketing harness (MIT) with 10 channel playbooks |
 | Frontend | React 19 + TypeScript + Vite (no UI framework) |
 | Sign-in | Passwordless email OTP via PayTrackify (`htdocs/email-finance`) |
 | Deploy | One static binary with the UI embedded |
@@ -37,9 +41,9 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 |---|---|
 | ![Sign in](docs/screenshots/login.png) | ![Home](docs/screenshots/home.png) |
 
-| Onboarding | Company dashboard |
+| Marketing library | Company dashboard |
 |---|---|
-| ![Onboarding](docs/screenshots/onboarding.png) | ![Company](docs/screenshots/company.png) |
+| ![Marketing](docs/screenshots/marketing.png) | ![Company](docs/screenshots/company.png) |
 
 | Task | Mobile |
 |---|---|
@@ -136,7 +140,18 @@ go run ./cmd/crew-worker --key crew_... --mode command \
   --command 'claude -p "Task: $CREW_TASK_TITLE. Details: $CREW_TASK_DETAILS"'
 ```
 
-### 5. Connect an AI model
+### 5. Give a helper a marketing brain
+
+Open **Marketing**. The **Skills** tab lists 53 playbooks — copywriting, pricing, SEO, paid ads,
+email, launches, and more. Open one to read it, then attach it to a helper. Attached skills are
+appended to that helper's briefing (bounded to 24k characters) every time it claims a task.
+
+The **Reverse-engineer** tab asks for a public company URL, an optional question, and a channel
+playbook. Crew fetches the page, applies the analyst harness, calls your model, and saves the
+report as a task in **Needs your OK**. It only sees the page you give it; anything else is listed
+as unknown.
+
+### 6. Connect an AI model
 
 Open **Settings → AI models** (or the last onboarding step). Each provider card links to its
 key page and shows which ones are free:
@@ -220,7 +235,7 @@ covered by `tests/Feature/Api/OtpAuthTest.php`:
 users      (id, external_id, email, name, created_at)
 companies  (id, user_id, name, business_key, website, support_email, description, audience, tone)
 provider_keys (id, user_id, provider, key_cipher, last4)
-agents     (id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, api_key_hash, last_seen_at)
+agents     (id, user_id, company_id, name, role, emoji, instructions, model_provider, model_name, skills JSON, api_key_hash, last_seen_at)
 tasks      (id, user_id, company_id, title, details, status, agent_id, created_at, updated_at, completed_at)
 comments   (id, task_id, author_type, author_name, body, created_at)
 activity   (id, user_id, kind, message, task_id, agent_id, created_at)
@@ -260,6 +275,9 @@ row-level security (see `ARCHITECTURE.md`).
 | `PATCH/DELETE` | `/api/companies/{id}` | session | Edit / delete a company |
 | `GET` | `/api/presets` | session | Business catalogue |
 | `GET` | `/api/providers` | session | Model providers, free flags, key status |
+| `GET` | `/api/skills` | session | 53 marketing skills + 10 teardown playbooks |
+| `GET` | `/api/skills/{key}` | session | One skill's full text |
+| `POST` | `/api/marketing/analyze` | session | Fetch a site, run a teardown, save the report |
 | `PUT/DELETE` | `/api/providers/{key}` | session | Save / remove an encrypted key |
 | `POST` | `/api/providers/{key}/test` | session | Live key check |
 | `GET/POST` | `/api/agents` | session | List / add helpers |

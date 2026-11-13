@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, ApiError, type Agent, type Provider, type Task } from "../api";
+import { api, ApiError, type Agent, type Provider, type Skill, type Task } from "../api";
 import { NewTaskModal } from "../components/NewTaskModal";
 import { TaskRow } from "../components/rows";
 import { Link, navigate } from "../router";
 import { relativeTime } from "../time";
-import { Avatar, Button, EmptyState, Field, Modal, Select, Textarea, useToast } from "../ui";
+import { Avatar, Button, EmptyState, Field, Input, Modal, Select, Textarea, useToast } from "../ui";
 import { statusLabel } from "./Helpers";
 import { roles } from "../roles";
 
@@ -24,6 +24,11 @@ export function HelperDetail({ id }: { id: string }) {
   const [modelProvider, setModelProvider] = useState("");
   const [modelName, setModelName] = useState("");
   const [modelBusy, setModelBusy] = useState(false);
+  const [catalog, setCatalog] = useState<Skill[]>([]);
+  const [skillsOpen, setSkillsOpen] = useState(false);
+  const [draftSkills, setDraftSkills] = useState<string[]>([]);
+  const [skillQuery, setSkillQuery] = useState("");
+  const [skillBusy, setSkillBusy] = useState(false);
 
   const load = useCallback(() => {
     api
@@ -49,6 +54,11 @@ export function HelperDetail({ id }: { id: string }) {
       .providers()
       .then((result) => setProviders(result.providers.filter((provider) => provider.configured)))
       .catch(() => setProviders([]));
+
+    api
+      .skills()
+      .then((result) => setCatalog(result.skills))
+      .catch(() => setCatalog([]));
   }, []);
 
   async function save() {
@@ -242,6 +252,43 @@ export function HelperDetail({ id }: { id: string }) {
           </section>
 
           <section className="card">
+            <div className="row-between" style={{ alignItems: "flex-start" }}>
+              <div>
+                <h2 className="section-title" style={{ marginBottom: 4 }}>
+                  Skills
+                </h2>
+                <p className="small muted" style={{ marginBottom: 0 }}>
+                  Playbooks this helper reads before every task.
+                </p>
+              </div>
+              <Button
+                size="sm"
+                onClick={() => {
+                  setDraftSkills(agent.skills ?? []);
+                  setSkillQuery("");
+                  setSkillsOpen(true);
+                }}
+              >
+                Choose skills
+              </Button>
+            </div>
+
+            <div className="chip-row mt-16">
+              {(agent.skills ?? []).length === 0 ? (
+                <p className="small muted" style={{ margin: 0 }}>
+                  No skills yet. Pick a few from the marketing library.
+                </p>
+              ) : (
+                (agent.skills ?? []).map((key) => (
+                  <span className="chip" key={key}>
+                    {catalog.find((skill) => skill.key === key)?.name ?? key}
+                  </span>
+                ))
+              )}
+            </div>
+          </section>
+
+          <section className="card">
             <h2 className="section-title mb-8">Model</h2>
             <p className="small muted mb-16">
               Which AI model {agent.name} should use. Add keys in{" "}
@@ -338,6 +385,90 @@ export function HelperDetail({ id }: { id: string }) {
           navigate(`/tasks/${task.id}`);
         }}
       />
+
+      <Modal
+        open={skillsOpen}
+        title={`Skills for ${agent.name}`}
+        onClose={() => setSkillsOpen(false)}
+        footer={
+          <>
+            <Button onClick={() => setSkillsOpen(false)} disabled={skillBusy}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              loading={skillBusy}
+              onClick={async () => {
+                setSkillBusy(true);
+                try {
+                  const result = await api.updateAgent(id, { skills: draftSkills });
+                  setAgent(result.agent);
+                  setSkillsOpen(false);
+                  push("Skills saved.");
+                } catch (err) {
+                  push(err instanceof ApiError ? err.message : "We couldn't save those skills.", "error");
+                } finally {
+                  setSkillBusy(false);
+                }
+              }}
+            >
+              Save skills
+            </Button>
+          </>
+        }
+      >
+        <p className="small muted mb-16">
+          Choose up to 8. Each one is added to the helper's briefing, within a safe size limit. From the{" "}
+          <Link to="/marketing">marketing library</Link>.
+        </p>
+
+        <Input
+          placeholder="Search skills…"
+          value={skillQuery}
+          onChange={(event) => setSkillQuery(event.target.value)}
+          aria-label="Search skills"
+        />
+        <p className="tiny muted mt-8 mb-8">{draftSkills.length} of 8 selected</p>
+
+        <div className="skill-picker">
+          {catalog
+            .filter((skill) => {
+              const needle = skillQuery.trim().toLowerCase();
+              if (!needle) return true;
+              return (
+                skill.name.toLowerCase().includes(needle) ||
+                skill.category.toLowerCase().includes(needle) ||
+                skill.description.toLowerCase().includes(needle)
+              );
+            })
+            .map((skill) => {
+              const checked = draftSkills.includes(skill.key);
+              return (
+                <label className="skill-option" key={skill.key}>
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => {
+                      if (checked) {
+                        setDraftSkills(draftSkills.filter((item) => item !== skill.key));
+                      } else if (draftSkills.length >= 8) {
+                        push("Choose at most 8 skills.", "error");
+                      } else {
+                        setDraftSkills([...draftSkills, skill.key]);
+                      }
+                    }}
+                  />
+                  <span>
+                    <span className="skill-option-name">
+                      {skill.name} <span className="tiny muted">· {skill.category}</span>
+                    </span>
+                    <span className="skill-option-desc">{skill.description}</span>
+                  </span>
+                </label>
+              );
+            })}
+        </div>
+      </Modal>
 
       <Modal
         open={removeOpen}

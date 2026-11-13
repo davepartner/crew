@@ -40,6 +40,7 @@ export function Privacy() {
         <li>Basic technical details when you sign in, such as the device name and IP address, so you can sign out devices you don't recognise.</li>
         <li>Company details you enter, such as your website, support email and what the business does.</li>
         <li>AI provider keys you choose to add. They are encrypted on the server and never shown again in the app.</li>
+        <li>Marketing teardowns you run: the public page address, the page text we read, and the report.</li>
       </ul>
 
       <h2 className="section-title">What we don't do</h2>
@@ -54,6 +55,10 @@ export function Privacy() {
         Sign-in is handled by PayTrackify, which sends your one-time code. When you connect an AI provider, your
         business details and task text are sent to that provider so your helpers can do the work. Their terms and
         privacy policy also apply. We name every provider and link to its key page inside the app.
+      </p>
+      <p>
+        When you run a marketing teardown, Crew fetches the public page you name and sends its text to
+        the model provider you connected. The report is stored as a task in your company.
       </p>
 
       <h2 className="section-title">Your choices</h2>

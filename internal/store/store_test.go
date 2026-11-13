@@ -27,7 +27,7 @@ func TestClaimRequeuesStaleWork(t *testing.T) {
 		t.Fatalf("company: %v", err)
 	}
 
-	agent, err := st.CreateAgent(ctx, user.ID, company.ID, "Ada", "Writer", "✍️", "", "hash-1")
+	agent, err := st.CreateAgent(ctx, user.ID, company.ID, "Ada", "Writer", "✍️", "", nil, "hash-1")
 	if err != nil {
 		t.Fatalf("agent: %v", err)
 	}
@@ -72,7 +72,7 @@ func TestTouchTaskExtendsTheLease(t *testing.T) {
 	ctx := context.Background()
 	user, _ := st.UpsertUser(ctx, "ext-1", "jane@example.com", "Jane")
 	company, _ := st.CreateCompany(ctx, user.ID, CompanyInput{Name: "Test Co", BusinessKey: "custom"})
-	agent, _ := st.CreateAgent(ctx, user.ID, company.ID, "Ada", "Writer", "✍️", "", "hash-1")
+	agent, _ := st.CreateAgent(ctx, user.ID, company.ID, "Ada", "Writer", "✍️", "", nil, "hash-1")
 	task, _ := st.CreateTask(ctx, user.ID, company.ID, "Do the thing", "", agent.ID)
 
 	old := time.Now().UTC().Add(-30 * time.Minute).Format(TimeFormat)

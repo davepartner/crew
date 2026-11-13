@@ -7,6 +7,7 @@ import { Tasks } from "./pages/Tasks";
 import { TaskDetail } from "./pages/TaskDetail";
 import { Helpers } from "./pages/Helpers";
 import { HelperDetail } from "./pages/HelperDetail";
+import { Marketing } from "./pages/Marketing";
 import { ActivityPage } from "./pages/Activity";
 import { Settings } from "./pages/Settings";
 import { Privacy, Terms, Support, NotFound } from "./pages/Legal";
@@ -154,6 +155,7 @@ const navItems: NavItem[] = [
   { to: "/", label: "Home", icon: "⌂", match: (path) => path === "/" },
   { to: "/tasks", label: "Tasks", icon: "☑", match: (path) => path.startsWith("/tasks") },
   { to: "/helpers", label: "Helpers", icon: "✦", match: (path) => path.startsWith("/helpers") },
+  { to: "/marketing", label: "Marketing", icon: "◈", match: (path) => path === "/marketing" },
   { to: "/activity", label: "Activity", icon: "≡", match: (path) => path === "/activity" },
 ];
 
@@ -445,6 +447,7 @@ function Route({
   if (path === "/") return <Home />;
   if (path === "/tasks") return <Tasks />;
   if (path === "/helpers") return <Helpers />;
+  if (path === "/marketing") return <Marketing />;
   if (path === "/activity") return <ActivityPage />;
   if (path === "/settings")
     return (

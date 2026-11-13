@@ -1,0 +1,65 @@
+{
+  "version": 3,
+  "playbooks": [
+    {
+      "key": "apps",
+      "name": "Playbook: Mobile apps",
+      "summary": "Copyable output: install channel mix, the hook style, and the paywall/trial pattern.",
+      "file": "playbooks/apps.md"
+    },
+    {
+      "key": "community-launches",
+      "name": "Playbook: Community and launches",
+      "summary": "Copyable output: which communities to show up in, the launch sequence, and the thread formats that drive discussion.",
+      "file": "playbooks/community-launches.md"
+    },
+    {
+      "key": "founder-led",
+      "name": "Playbook: Founder-led distribution",
+      "summary": "- Identify founders/leaders (LinkedIn search + links on the site). Mark weak matches.",
+      "file": "playbooks/founder-led.md"
+    },
+    {
+      "key": "funnel-monetization",
+      "name": "Playbook: Funnel, offer and monetization",
+      "summary": "Copyable output: the offer to copy, the pricing structure, and the one funnel step most worth replicating.",
+      "file": "playbooks/funnel-monetization.md"
+    },
+    {
+      "key": "organic-short-form",
+      "name": "Playbook: Organic social (TikTok, Instagram, YouTube, X, LinkedIn page)",
+      "summary": "Per platform:",
+      "file": "playbooks/organic-short-form.md"
+    },
+    {
+      "key": "paid-b2b",
+      "name": "Playbook: Paid B2B (LinkedIn, Reddit, X) and app installs (TikTok)",
+      "summary": "Copyable output: which B2B platforms are worth testing given their ICP, and the gated asset if they use one.",
+      "file": "playbooks/paid-b2b.md"
+    },
+    {
+      "key": "paid-meta",
+      "name": "Playbook: Paid Meta (Facebook + Instagram)",
+      "summary": "What to extract:",
+      "file": "playbooks/paid-meta.md"
+    },
+    {
+      "key": "paid-search",
+      "name": "Playbook: Paid search (Google, Microsoft, Apple Search Ads)",
+      "summary": "- Google Ads Transparency gives creative count, formats (text/image/video) and first/last shown dates per advertiser. \"Shown in the last 30 days\" means currently active.",
+      "file": "playbooks/paid-search.md"
+    },
+    {
+      "key": "reddit",
+      "name": "Playbook: Reddit marketing",
+      "summary": "Reddit is one of the few channels where small teams still win on effort, and it doubles as SEO: Reddit threads rank on Google and get cited by AI search.",
+      "file": "playbooks/reddit.md"
+    },
+    {
+      "key": "seo-geo",
+      "name": "Playbook: SEO and AI search (GEO)",
+      "summary": "Copyable output: the 1–2 page templates to build first and the number of pages, plus AI-crawler settings.",
+      "file": "playbooks/seo-geo.md"
+    }
+  ]
+}

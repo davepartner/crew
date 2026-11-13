@@ -20,6 +20,8 @@ import (
 	"os/exec"
 	"strings"
 	"time"
+
+	"github.com/davepartner/crew/internal/llm"
 )
 
 type task struct {
@@ -123,135 +125,12 @@ func (w *worker) askModel(model modelConfig, t *task, instructions string) (stri
 
 	prompt := "Task: " + t.Title + "\n\n" + t.Details + "\n\nReturn the finished work, ready for a human to review. Be concise and concrete."
 
-	switch model.Kind {
-	case "anthropic":
-		return w.askAnthropic(ctx, model, system, prompt)
-	case "google":
-		return w.askGoogle(ctx, model, system, prompt)
-	default:
-		return w.askOpenAI(ctx, model, system, prompt)
-	}
-}
-
-func (w *worker) askOpenAI(ctx context.Context, model modelConfig, system, prompt string) (string, error) {
-	payload := map[string]any{
-		"model": model.Model,
-		"messages": []map[string]string{
-			{"role": "system", "content": system},
-			{"role": "user", "content": prompt},
-		},
-		"temperature": 0.3,
-	}
-	return w.postJSON(ctx, model.BaseURL+"/chat/completions", map[string]string{
-		"Authorization": "Bearer " + model.APIKey,
-	}, payload, func(raw []byte) (string, error) {
-		var out struct {
-			Choices []struct {
-				Message struct {
-					Content string `json:"content"`
-				} `json:"message"`
-			} `json:"choices"`
-		}
-		if err := json.Unmarshal(raw, &out); err != nil {
-			return "", err
-		}
-		if len(out.Choices) == 0 {
-			return "", fmt.Errorf("empty response")
-		}
-		return out.Choices[0].Message.Content, nil
-	})
-}
-
-func (w *worker) askAnthropic(ctx context.Context, model modelConfig, system, prompt string) (string, error) {
-	payload := map[string]any{
-		"model":      model.Model,
-		"max_tokens": 1600,
-		"system":     system,
-		"messages":   []map[string]string{{"role": "user", "content": prompt}},
-	}
-	return w.postJSON(ctx, model.BaseURL+"/messages", map[string]string{
-		"x-api-key":         model.APIKey,
-		"anthropic-version": "2023-06-01",
-	}, payload, func(raw []byte) (string, error) {
-		var out struct {
-			Content []struct {
-				Text string `json:"text"`
-			} `json:"content"`
-		}
-		if err := json.Unmarshal(raw, &out); err != nil {
-			return "", err
-		}
-		parts := make([]string, 0, len(out.Content))
-		for _, part := range out.Content {
-			if part.Text != "" {
-				parts = append(parts, part.Text)
-			}
-		}
-		return strings.Join(parts, "\n"), nil
-	})
-}
-
-func (w *worker) askGoogle(ctx context.Context, model modelConfig, system, prompt string) (string, error) {
-	payload := map[string]any{
-		"systemInstruction": map[string]any{"parts": []map[string]string{{"text": system}}},
-		"contents":          []map[string]any{{"parts": []map[string]string{{"text": prompt}}}},
-	}
-	url := model.BaseURL + "/models/" + model.Model + ":generateContent?key=" + model.APIKey
-	return w.postJSON(ctx, url, nil, payload, func(raw []byte) (string, error) {
-		var out struct {
-			Candidates []struct {
-				Content struct {
-					Parts []struct {
-						Text string `json:"text"`
-					} `json:"parts"`
-				} `json:"content"`
-			} `json:"candidates"`
-		}
-		if err := json.Unmarshal(raw, &out); err != nil {
-			return "", err
-		}
-		if len(out.Candidates) == 0 {
-			return "", fmt.Errorf("empty response")
-		}
-		parts := make([]string, 0)
-		for _, part := range out.Candidates[0].Content.Parts {
-			if part.Text != "" {
-				parts = append(parts, part.Text)
-			}
-		}
-		return strings.Join(parts, "\n"), nil
-	})
-}
-
-func (w *worker) postJSON(ctx context.Context, url string, headers map[string]string, payload any, decode func([]byte) (string, error)) (string, error) {
-	body, err := json.Marshal(payload)
-	if err != nil {
-		return "", err
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(body))
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("Content-Type", "application/json")
-	for key, value := range headers {
-		if value != "" {
-			req.Header.Set(key, value)
-		}
-	}
-
-	resp, err := w.http.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	raw, _ := io.ReadAll(io.LimitReader(resp.Body, 4<<20))
-	if resp.StatusCode >= 400 {
-		return "", fmt.Errorf("%s: %s", resp.Status, strings.TrimSpace(string(raw)))
-	}
-
-	return decode(raw)
+	return llm.Complete(ctx, llm.Config{
+		Kind:    model.Kind,
+		BaseURL: model.BaseURL,
+		Model:   model.Model,
+		APIKey:  model.APIKey,
+	}, system, prompt, 1600)
 }
 
 func (w *worker) run(t *task, instructions string) {

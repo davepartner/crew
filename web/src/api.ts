@@ -34,6 +34,31 @@ export type PresetDetail = {
   integrations: string[];
 };
 
+export type Skill = {
+  key: string;
+  name: string;
+  description: string;
+  category: string;
+  chars: number;
+  source: string;
+  source_url: string;
+};
+
+export type Playbook = {
+  key: string;
+  name: string;
+  summary: string;
+  file: string;
+};
+
+export type MarketingReport = {
+  ok: boolean;
+  report: string;
+  model: string;
+  evidence: { url: string; title: string; description: string; characters: number; truncated: boolean };
+  task?: Task;
+};
+
 export type Provider = {
   key: string;
   name: string;
@@ -64,6 +89,7 @@ export type Agent = {
   role: string;
   emoji: string;
   instructions: string;
+  skills: string[];
   model_provider: string;
   model_name: string;
   status: AgentStatus;
@@ -275,6 +301,17 @@ export const api = {
   deleteCompany: (id: string) =>
     request<{ ok: boolean }>(`/api/companies/${id}`, { method: "DELETE" }),
 
+  skills: () =>
+    request<{ ok: boolean; skills: Skill[]; categories: string[]; count: number; playbooks: Playbook[]; sources: { name: string; url: string; license: string }[] }>(
+      "/api/skills",
+    ),
+  skill: (key: string) => request<{ ok: boolean; skill: Skill; body: string }>(`/api/skills/${key}`),
+  analyzeMarketing: (input: { url: string; focus: string; playbook: string; agentId?: string }) =>
+    request<MarketingReport>("/api/marketing/analyze", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+
   presets: () =>
     request<{ ok: boolean; businesses: BusinessPreset[]; categories: string[] }>("/api/presets"),
   preset: (key: string) => request<{ ok: boolean } & PresetDetail>(`/api/presets/${key}`),
@@ -301,7 +338,7 @@ export const api = {
     }),
   agent: (id: string) =>
     request<{ ok: boolean; agent: Agent; tasks: Task[]; status: AgentStatus }>(`/api/agents/${id}`),
-  updateAgent: (id: string, input: Partial<Pick<Agent, "name" | "role" | "emoji" | "instructions" | "model_provider" | "model_name">> & { modelProvider?: string; modelName?: string }) =>
+  updateAgent: (id: string, input: Partial<Pick<Agent, "name" | "role" | "emoji" | "instructions" | "skills" | "model_provider" | "model_name">> & { modelProvider?: string; modelName?: string }) =>
     request<{ ok: boolean; agent: Agent }>(`/api/agents/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input),

@@ -92,6 +92,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("DELETE /api/providers/{key}", s.requireUser(s.handleDeleteProviderKey))
 	mux.HandleFunc("POST /api/providers/{key}/test", s.requireUser(s.handleTestProvider))
 
+	// Marketing library and lab.
+	mux.HandleFunc("GET /api/skills", s.requireUser(s.handleSkills))
+	mux.HandleFunc("GET /api/skills/{key}", s.requireUser(s.handleSkill))
+	mux.HandleFunc("POST /api/marketing/analyze", s.requireUser(s.requireCompany(s.handleMarketingAnalyze)))
+
 	// Work, scoped to the active company.
 	mux.HandleFunc("GET /api/dashboard", s.requireUser(s.requireCompany(s.handleDashboard)))
 	mux.HandleFunc("GET /api/activity", s.requireUser(s.requireCompany(s.handleActivity)))

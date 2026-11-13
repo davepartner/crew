@@ -107,7 +107,7 @@ func (s *Server) handleCreateCompany(w http.ResponseWriter, r *http.Request) {
 
 		for _, preset := range business.Agents {
 			agent, err := s.store.CreateAgent(r.Context(), id.UserID, company.ID, preset.Name, preset.Role,
-				preset.Emoji, presets.Render(preset.Instructions, vars), hashKey(newAgentKey()))
+				preset.Emoji, presets.Render(preset.Instructions, vars), defaultSkills(preset.Role), hashKey(newAgentKey()))
 			if err != nil {
 				continue
 			}
@@ -445,5 +445,26 @@ func testProvider(ctx context.Context, provider modelcatalog.Provider, key strin
 			return false, trim(body.Error.Message, 200)
 		}
 		return false, "That provider returned " + response.Status + "."
+	}
+}
+
+// defaultSkills gives new preset helpers a small, useful starting library. A
+// person can change it on the helper page.
+func defaultSkills(role string) []string {
+	switch role {
+	case "Marketing", "Audience":
+		return []string{"copywriting", "content-strategy", "competitor-profiling"}
+	case "Product":
+		return []string{"product-marketing", "pricing"}
+	case "Editorial":
+		return []string{"copy-editing", "content-strategy"}
+	case "Sales":
+		return []string{"offers", "cold-email"}
+	case "Community":
+		return []string{"community-marketing", "social"}
+	case "Support", "Patient experience", "Front desk", "Client success":
+		return []string{"customer-research"}
+	default:
+		return nil
 	}
 }

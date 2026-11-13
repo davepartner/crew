@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/davepartner/crew/internal/modelcatalog"
+	"github.com/davepartner/crew/internal/skills"
 	"github.com/davepartner/crew/internal/store"
 )
 
@@ -70,10 +71,16 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 	_ = s.store.AddActivity(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, "task_started",
 		agent.Agent.Name+" started “"+task.Title+"”", task.ID, agent.Agent.ID)
 
+	instructions := agent.Agent.Instructions
+	if len(agent.Agent.Skills) > 0 {
+		instructions += skills.Prompt(agent.Agent.Skills, 24000)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":           true,
 		"task":         task,
-		"instructions": agent.Agent.Instructions,
+		"instructions": instructions,
+		"skills":       agent.Agent.Skills,
 	})
 }
 

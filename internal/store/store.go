@@ -146,6 +146,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		{"agents", "company_id", "TEXT NOT NULL DEFAULT ''"},
 		{"agents", "model_provider", "TEXT NOT NULL DEFAULT ''"},
 		{"agents", "model_name", "TEXT NOT NULL DEFAULT ''"},
+		{"agents", "skills", "TEXT NOT NULL DEFAULT '[]'"},
 		{"tasks", "company_id", "TEXT NOT NULL DEFAULT ''"},
 		{"activity", "company_id", "TEXT NOT NULL DEFAULT ''"},
 	}

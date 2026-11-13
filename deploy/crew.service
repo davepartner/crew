@@ -10,6 +10,7 @@ EnvironmentFile=/home/investorpath/crew/crew.env
 ExecStart=/home/investorpath/crew/crew
 Restart=always
 RestartSec=3
+UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 

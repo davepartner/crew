@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -62,8 +63,9 @@ func (s *Server) handleSendWhatsApp(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		To      string `json:"to"`
-		Message string `json:"message"`
+		To       string `json:"to"`
+		Message  string `json:"message"`
+		Template bool   `json:"template"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -80,7 +82,28 @@ func (s *Server) handleSendWhatsApp(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payload := fmt.Sprintf(`{"messaging_product":"whatsapp","to":%q,"type":"text","text":{"body":%q}}`, to, message)
+	var payload string
+	if body.Template {
+		name := strings.TrimSpace(config["template_name"])
+		language := strings.TrimSpace(config["template_language"])
+		if name == "" || language == "" {
+			writeError(w, http.StatusUnprocessableEntity, "Add an approved template name and language in Settings → Integrations.")
+			return
+		}
+		encoded, _ := json.Marshal(map[string]any{
+			"messaging_product": "whatsapp", "to": to, "type": "template",
+			"template": map[string]any{
+				"name": name, "language": map[string]string{"code": language},
+				"components": []map[string]any{{
+					"type":       "body",
+					"parameters": []map[string]any{{"type": "text", "text": message}},
+				}},
+			},
+		})
+		payload = string(encoded)
+	} else {
+		payload = fmt.Sprintf(`{"messaging_product":"whatsapp","to":%q,"type":"text","text":{"body":%q}}`, to, message)
+	}
 	endpoint := "https://graph.facebook.com/v20.0/" + url.PathEscape(config["phone_number_id"]) + "/messages"
 
 	request, err := http.NewRequestWithContext(r.Context(), http.MethodPost, endpoint, strings.NewReader(payload))

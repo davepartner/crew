@@ -16,7 +16,7 @@ var integrationKinds = []string{"whatsapp", "meta_ads", "tiktok_ads", "google_ad
 func integrationFields(kind string) []string {
 	switch kind {
 	case "whatsapp":
-		return []string{"phone_number_id", "token", "default_to"}
+		return []string{"phone_number_id", "token", "default_to", "template_name", "template_language"}
 	case "meta_ads":
 		return []string{"account_id", "access_token"}
 	case "tiktok_ads":
@@ -179,7 +179,7 @@ func validIntegration(kind string) bool {
 
 func integrationReady(kind string, config map[string]string) bool {
 	for _, field := range integrationFields(kind) {
-		if field == "default_to" || field == "login_customer_id" {
+		if field == "default_to" || field == "login_customer_id" || field == "template_name" || field == "template_language" {
 			continue
 		}
 		if strings.TrimSpace(config[field]) == "" {

@@ -32,7 +32,9 @@ This is the rebuilt core of the Paperclip idea, with five deliberate changes:
 | Advise Me | Country-aware company study, checklist, next actions, helper creation and a floating advisor |
 | Products | Every company can run multiple product workspaces, each with the full feature set |
 | Files & financials | Upload evidence; model margin, runway and break-even; audited vs management accounts |
-| Integrations | Email, WhatsApp, Meta/TikTok/Google Ads read-only, and Brave Search |
+| Integrations | Email, WhatsApp templates, Meta/TikTok/Google Ads controls, SearXNG and Brave Search |
+| Portfolio | Consolidated revenue, net, cash and health across every product |
+| Search | Self-hosted SearXNG for arbitrary web results; Brave optional |
 | Routines | Daily, weekday, weekly or monthly recurring tasks |
 | Goals | Numeric goals with progress, due dates and completion |
 | Included model | DeepSeek by default, proxied server-side so helpers never see the key |

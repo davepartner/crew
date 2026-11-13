@@ -3,6 +3,7 @@ package httpapi
 import (
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/davepartner/crew/internal/finance"
@@ -101,3 +102,101 @@ func latestFinancials(snapshots []store.FinancialSnapshot) *finance.Model {
 }
 
 var _ = strings.TrimSpace
+
+func (s *Server) handleAuditFinancials(w http.ResponseWriter, r *http.Request) {
+	company := companyFrom(r)
+
+	var body struct {
+		FileID  string `json:"fileId"`
+		Auditor string `json:"auditor"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if body.FileID == "" {
+		writeError(w, http.StatusUnprocessableEntity, "Choose the audited statement to compare against.")
+		return
+	}
+
+	snapshot, err := s.store.GetFinancialSnapshot(r.Context(), company.ID, r.PathValue("id"))
+	if err != nil {
+		writeError(w, http.StatusNotFound, "That financial snapshot doesn't exist.")
+		return
+	}
+	file, err := s.store.GetCompanyFile(r.Context(), company.ID, body.FileID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "That file doesn't exist.")
+		return
+	}
+	if len(strings.TrimSpace(file.Text)) < 20 {
+		writeError(w, http.StatusUnprocessableEntity, "We couldn't read text from that file. Upload a text-based PDF or image.")
+		return
+	}
+
+	status, note := auditNumbers(snapshot, file.Text)
+	if err := s.store.SaveFinancialAudit(r.Context(), company.ID, snapshot.ID, file.ID, status, note, trim(body.Auditor, 160)); err != nil {
+		writeError(w, http.StatusInternalServerError, "We couldn't save the audit result.")
+		return
+	}
+	snapshot.AuditStatus, snapshot.AuditNote, snapshot.Auditor, snapshot.AuditFileID = status, note, trim(body.Auditor, 160), file.ID
+	_ = s.store.DeleteCompanyAdvice(r.Context(), company.ID)
+
+	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "snapshot": snapshot, "status": status, "note": note})
+}
+
+func auditNumbers(snapshot store.FinancialSnapshot, text string) (string, string) {
+	checks := []struct {
+		label string
+		value float64
+	}{
+		{"revenue", snapshot.Revenue},
+		{"cost of sales", snapshot.COGS},
+		{"operating costs", snapshot.Opex},
+	}
+
+	matched := 0
+	missing := make([]string, 0, 3)
+	for _, check := range checks {
+		if check.value <= 0 {
+			continue
+		}
+		if containsAmount(text, check.value) {
+			matched++
+		} else {
+			missing = append(missing, check.label)
+		}
+	}
+
+	total := 0
+	for _, check := range checks {
+		if check.value > 0 {
+			total++
+		}
+	}
+
+	switch {
+	case matched == total && total > 0:
+		return "verified", "All declared totals match the attached statement."
+	case matched > 0:
+		return "discrepancies", "Some totals were not found in the statement: " + strings.Join(missing, ", ") + "."
+	default:
+		return "evidence_attached", "The statement is attached, but the declared totals were not found as written."
+	}
+}
+
+func containsAmount(text string, value float64) bool {
+	normalized := strings.ToLower(text)
+	normalized = strings.NewReplacer(",", "", " ", "", "\u00a0", "", "₦", "", "$", "", "ngn", "", "usd", "").Replace(normalized)
+	formats := []string{
+		strconv.FormatFloat(value, 'f', 0, 64),
+		strconv.FormatFloat(value, 'f', 2, 64),
+		strconv.FormatFloat(value/1000, 'f', 1, 64) + "k",
+	}
+	for _, candidate := range formats {
+		if strings.Contains(normalized, candidate) {
+			return true
+		}
+	}
+	return false
+}

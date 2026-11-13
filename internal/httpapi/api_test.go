@@ -1248,4 +1248,13 @@ func TestProductsAndFinancials(t *testing.T) {
 	if finance.Model.BreakEvenSales <= 0 || finance.Model.Quality != "Management accounts" {
 		t.Fatalf("model: %+v", finance.Model)
 	}
+
+	var portfolio struct {
+		Rows   []map[string]any `json:"rows"`
+		Totals []map[string]any `json:"totals"`
+	}
+	status, raw = b.do(t, http.MethodGet, "/api/portfolio", nil, &portfolio)
+	if status != 200 || len(portfolio.Rows) != 2 || len(portfolio.Totals) == 0 {
+		t.Fatalf("portfolio: %d %s %+v", status, raw, portfolio)
+	}
 }

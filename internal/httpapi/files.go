@@ -1,13 +1,15 @@
 package httpapi
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"regexp"
-	"strings"
+	"time"
 
+	"github.com/davepartner/crew/internal/extract"
 	"github.com/davepartner/crew/internal/store"
 )
 
@@ -59,13 +61,6 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	mime := http.DetectContentType(data)
-	text := ""
-	if strings.HasPrefix(mime, "text/") || strings.Contains(mime, "json") || strings.Contains(mime, "csv") {
-		text = string(data)
-		if len(text) > 200000 {
-			text = text[:200000]
-		}
-	}
 
 	name := unsafeFileChars.ReplaceAllString(filepath.Base(header.Filename), "-")
 	if name == "" || name == "." {
@@ -88,6 +83,10 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "We couldn't store that file.")
 		return
 	}
+
+	extractCtx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
+	text := extract.Text(extractCtx, path, mime, data)
+	cancel()
 
 	_ = s.store.DeleteCompanyAdvice(r.Context(), company.ID)
 	saved, err := s.store.CreateCompanyFile(r.Context(), id.UserID, company.ID, name, mime, path, text, int64(len(data)))

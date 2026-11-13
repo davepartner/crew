@@ -184,6 +184,10 @@ export type FinancialSnapshot = {
   payables: number;
   source: string;
   audited: boolean;
+  audit_status: "self_reported" | "evidence_attached" | "discrepancies" | "verified";
+  audit_note: string;
+  auditor: string;
+  audit_file_id: string;
   created_at: string;
 };
 
@@ -203,6 +207,44 @@ export type FinancialModel = {
   annual_revenue: number;
   quality: string;
   source: string;
+};
+
+export type PortfolioRow = {
+  id: string;
+  name: string;
+  is_product: boolean;
+  country: string;
+  currency: string;
+  stage: string;
+  score: number;
+  revenue: number;
+  net_profit: number;
+  cash: number;
+  tasks: number;
+  agents: number;
+  audit_state: string;
+};
+
+export type PortfolioTotal = {
+  currency: string;
+  revenue: number;
+  net_profit: number;
+  cash: number;
+};
+
+export type AdAccountCampaign = {
+  id: string;
+  name: string;
+  status: string;
+  budget: number;
+  currency: string;
+};
+
+export type AdAccount = {
+  platform: "meta" | "tiktok" | "google";
+  configured: boolean;
+  campaigns: AdAccountCampaign[];
+  error?: string;
 };
 
 export type Integration = {
@@ -579,13 +621,28 @@ export const api = {
   },
   financials: () =>
     request<{ ok: boolean; snapshots: FinancialSnapshot[]; model: FinancialModel | null }>("/api/financials"),
-  saveFinancials: (input: Omit<FinancialSnapshot, "id" | "created_at">) =>
+  saveFinancials: (input: {
+    period: string;
+    revenue: number;
+    cogs: number;
+    opex: number;
+    cash: number;
+    receivables: number;
+    payables: number;
+    source: string;
+    audited: boolean;
+  }) =>
     request<{ ok: boolean; snapshot: FinancialSnapshot; model: FinancialModel }>("/api/financials", {
       method: "POST",
       body: JSON.stringify(input),
     }),
   deleteFinancials: (id: string) =>
     request<{ ok: boolean }>(`/api/financials/${id}`, { method: "DELETE" }),
+  auditFinancials: (id: string, fileId: string, auditor: string) =>
+    request<{ ok: boolean; snapshot: FinancialSnapshot; status: string; note: string }>(
+      `/api/financials/${id}/audit`,
+      { method: "POST", body: JSON.stringify({ fileId, auditor }) },
+    ),
   integrations: () =>
     request<{ ok: boolean; integrations: Integration[]; email: { available: boolean; from: string } }>(
       "/api/integrations",
@@ -603,9 +660,28 @@ export const api = {
     request<{ ok: boolean; overview: Record<string, unknown> }>(`/api/integrations/${kind}/overview`),
   sendEmail: (input: { to: string; subject: string; body: string }) =>
     request<{ ok: boolean }>("/api/send/email", { method: "POST", body: JSON.stringify(input) }),
-  sendWhatsApp: (input: { to: string; message: string }) =>
+  sendWhatsApp: (input: { to: string; message: string; template?: boolean }) =>
     request<{ ok: boolean }>("/api/send/whatsapp", { method: "POST", body: JSON.stringify(input) }),
 
+  adAccounts: () => request<{ ok: boolean; accounts: AdAccount[] }>("/api/adaccounts"),
+  createAdCampaign: (platform: string, name: string, budget: number) =>
+    request<{ ok: boolean; id: string }>(`/api/adaccounts/${platform}/campaigns`, {
+      method: "POST",
+      body: JSON.stringify({ name, budget }),
+    }),
+  setAdCampaignStatus: (platform: string, id: string, status: "PAUSED" | "ACTIVE") =>
+    request<{ ok: boolean }>(`/api/adaccounts/${platform}/campaigns/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status }),
+    }),
+  setAdCampaignBudget: (platform: string, id: string, budget: number) =>
+    request<{ ok: boolean }>(`/api/adaccounts/${platform}/campaigns/${id}/budget`, {
+      method: "POST",
+      body: JSON.stringify({ budget }),
+    }),
+
+  portfolio: () =>
+    request<{ ok: boolean; parent: Company; products: Company[]; rows: PortfolioRow[]; totals: PortfolioTotal[] }>("/api/portfolio"),
   products: () => request<{ ok: boolean; products: Company[] }>("/api/products"),
   createProduct: (input: { name: string; description: string; audience: string; website: string }) =>
     request<{ ok: boolean; product: Company }>("/api/products", {

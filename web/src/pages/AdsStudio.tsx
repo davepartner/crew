@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, type AdCampaign, type AdConcept, type AdResult, type AdsBrief, type Agent } from "../api";
+import { api, ApiError, type AdAccount, type AdCampaign, type AdConcept, type AdResult, type AdsBrief, type Agent } from "../api";
 import { navigate } from "../router";
 import { money } from "../time";
-import { Button, Field, Input, Select, Textarea, useToast } from "../ui";
+import { Button, Field, Input, Select, Skeleton, Textarea, useToast } from "../ui";
 
 const platforms = [
   { key: "meta", label: "Meta", hint: "Facebook + Instagram" },
@@ -163,7 +163,9 @@ export function AdsStudio() {
   }
 
   return (
-    <div className="marketing-layout">
+    <>
+      <AdAccountsPanel />
+      <div className="marketing-layout">
       <form className="card" onSubmit={generate} style={{ maxWidth: 560 }}>
         <h2 className="section-title mb-8">New ad campaign</h2>
         <p className="small muted mb-16">
@@ -330,7 +332,174 @@ export function AdsStudio() {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </>
+  );
+}
+
+function AdAccountsPanel() {
+  const { push } = useToast();
+  const [accounts, setAccounts] = useState<AdAccount[] | null>(null);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [name, setName] = useState("");
+  const [budget, setBudget] = useState("20");
+  const [budgets, setBudgets] = useState<Record<string, string>>({});
+
+  function load() {
+    api.adAccounts()
+      .then((result) => setAccounts(result.accounts))
+      .catch(() => setAccounts([]));
+  }
+
+  useEffect(load, []);
+
+  async function create(platform: string) {
+    if (name.trim() === "" || Number(budget) <= 0) return;
+    setBusy(platform + ":create");
+    try {
+      await api.createAdCampaign(platform, name.trim(), Number(budget));
+      push("Paused campaign created. It will not spend until you enable it.");
+      setName("");
+      load();
+    } catch (err) {
+      push(err instanceof ApiError ? err.message : "The campaign wasn't created.", "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function toggle(platform: string, id: string, status: string) {
+    const active = status === "ACTIVE" || status === "ENABLE" || status === "ENABLED";
+    const next = active ? "PAUSED" : "ACTIVE";
+    if (next === "ACTIVE" && !window.confirm("Enable this campaign? It can start spending immediately.")) return;
+    setBusy(platform + ":" + id);
+    try {
+      await api.setAdCampaignStatus(platform, id, next);
+      push(next === "ACTIVE" ? "Campaign enabled." : "Campaign paused.");
+      load();
+    } catch (err) {
+      push(err instanceof ApiError ? err.message : "We couldn't change the status.", "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function changeBudget(platform: string, id: string) {
+    const value = Number(budgets[platform + id] ?? "");
+    if (!value || value <= 0) return;
+    setBusy(platform + ":" + id + ":budget");
+    try {
+      await api.setAdCampaignBudget(platform, id, value);
+      push("Daily budget updated.");
+      load();
+    } catch (err) {
+      push(err instanceof ApiError ? err.message : "We couldn't change the budget.", "error");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const connected = (accounts ?? []).filter((account) => account.configured);
+
+  return (
+    <section className="card mb-16">
+      <div className="row-between" style={{ alignItems: "flex-start" }}>
+        <div>
+          <h2 className="section-title" style={{ marginBottom: 4 }}>Live ad accounts</h2>
+          <p className="small muted" style={{ margin: 0 }}>
+            Read campaigns, pause or enable them, change daily budgets, or create a campaign paused.
+          </p>
+        </div>
+        <Button size="sm" onClick={() => setOpen((value) => !value)}>
+          {open ? "Hide" : "Manage"}
+        </Button>
+      </div>
+
+      {accounts === null ? <Skeleton lines={2} /> : null}
+      {accounts && connected.length === 0 ? (
+        <p className="small muted mt-8">
+          No ad account connected. <a href="/settings">Settings → Integrations</a>.
+        </p>
+      ) : null}
+
+      {open && connected.length > 0 ? (
+        <div className="stack mt-16">
+          {connected.map((account) => (
+            <div className="ad-account" key={account.platform}>
+              <div className="row-between">
+                <strong style={{ textTransform: "capitalize" }}>{account.platform}</strong>
+                <span className="tiny muted">{account.campaigns?.length ?? 0} campaigns</span>
+              </div>
+              {account.error ? <p className="form-error">{account.error}</p> : null}
+              {(account.campaigns ?? []).map((campaign) => (
+                <div className="ad-account-row" key={campaign.id}>
+                  <span style={{ minWidth: 0 }}>
+                    <strong className="advise-file-name">{campaign.name}</strong>
+                    <span className="tiny muted">{campaign.status} · {campaign.id}</span>
+                  </span>
+                  <span className="tiny">{campaign.budget ? `${Math.round(campaign.budget)} / day` : "budget n/a"}</span>
+                  <Button
+                    size="sm"
+                    variant="quiet"
+                    loading={busy === account.platform + ":" + campaign.id}
+                    onClick={() => toggle(account.platform, campaign.id, campaign.status)}
+                  >
+                    {campaign.status === "ACTIVE" || campaign.status === "ENABLE" || campaign.status === "ENABLED" ? "Pause" : "Enable"}
+                  </Button>
+                  {account.platform === "google" ? (
+                    <span className="tiny muted">budget via Google Ads</span>
+                  ) : (
+                    <div className="row" style={{ gap: 4 }}>
+                      <input
+                        className="input"
+                        style={{ width: 76, minHeight: 30, padding: "4px 7px" }}
+                        placeholder="Budget"
+                        value={budgets[account.platform + campaign.id] ?? ""}
+                        onChange={(event) =>
+                          setBudgets((current) => ({ ...current, [account.platform + campaign.id]: event.target.value }))
+                        }
+                      />
+                      <Button
+                        size="sm"
+                        loading={busy === account.platform + ":" + campaign.id + ":budget"}
+                        onClick={() => changeBudget(account.platform, campaign.id)}
+                      >
+                        Set
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              <div className="row mt-8" style={{ flexWrap: "wrap" }}>
+                <Input
+                  style={{ flex: 1, minWidth: 160 }}
+                  placeholder="New campaign name"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+                <Input
+                  style={{ width: 90 }}
+                  type="number"
+                  min="1"
+                  placeholder="Daily"
+                  value={budget}
+                  onChange={(event) => setBudget(event.target.value)}
+                />
+                <Button
+                  size="sm"
+                  loading={busy === account.platform + ":create"}
+                  onClick={() => create(account.platform)}
+                >
+                  Create paused
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : null}
+    </section>
   );
 }
 

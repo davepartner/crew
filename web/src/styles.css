@@ -1390,3 +1390,32 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .advise-share-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 .advise-share-row .tiny { margin-right: auto; }
+
+.portfolio-totals { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; }
+.portfolio-total strong { display: block; font-size: 25px; margin: 5px 0 2px; font-variant-numeric: tabular-nums; }
+.portfolio-total-split { display: flex; gap: 14px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.portfolio-table { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow-x: auto; }
+.portfolio-head, .portfolio-row {
+  display: grid;
+  grid-template-columns: minmax(150px, 1.4fr) 90px 60px 110px 110px 110px 130px 66px;
+  gap: 10px;
+  align-items: center;
+  padding: 9px 11px;
+  font-size: 12.5px;
+  min-width: 840px;
+}
+.portfolio-head { background: var(--surface-2); color: var(--muted); font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.05em; }
+.portfolio-row { border-top: 1px solid var(--line); color: var(--ink-soft); }
+.portfolio-row strong { color: var(--ink); }
+@media (max-width: 700px) {
+  .portfolio-head, .portfolio-row { grid-template-columns: minmax(140px, 1.4fr) 80px 70px 100px; }
+  .portfolio-head span:nth-child(n+5), .portfolio-row span:nth-child(n+5) { display: none; }
+}
+
+.ad-account { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; background: var(--surface-2); }
+.ad-account-row { display: grid; grid-template-columns: minmax(0, 1fr) 90px 70px 155px; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--line); font-size: 12.5px; }
+.ad-account-row:first-of-type { border-top: none; }
+@media (max-width: 760px) {
+  .ad-account-row { grid-template-columns: minmax(0, 1fr) 80px; }
+  .ad-account-row > :nth-child(3), .ad-account-row > :nth-child(4) { grid-column: span 1; }
+}

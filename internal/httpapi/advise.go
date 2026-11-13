@@ -465,7 +465,7 @@ func (s *Server) webResearchDetailed(ctx context.Context, company *store.Company
 	var builder strings.Builder
 	sources := make([]chatSource, 0, 5)
 
-	for _, result := range research.Search(ctx, query, braveKey) {
+	for _, result := range research.Search(ctx, query, braveKey, s.cfg.SearchURL) {
 		if builder.Len() > 3500 {
 			break
 		}

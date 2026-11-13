@@ -40,7 +40,9 @@ func Build(snapshot store.FinancialSnapshot) Model {
 		model.BreakEvenSales = snapshot.Opex / model.GrossMargin
 	}
 
-	if snapshot.Audited {
+	if snapshot.AuditStatus == "verified" {
+		model.Quality = "Verified against statement"
+	} else if snapshot.Audited {
 		model.Quality = "Audited"
 	} else if snapshot.Source != "" {
 		model.Quality = "Management accounts"

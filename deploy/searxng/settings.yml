@@ -1,0 +1,12 @@
+# Minimal SearXNG settings for Crew.
+# Change secret_key before exposing this instance.
+use_default_settings: true
+server:
+  secret_key: "change-me-before-production"
+  limiter: false
+  image_proxy: false
+search:
+  safe_search: 0
+  formats:
+    - html
+    - json

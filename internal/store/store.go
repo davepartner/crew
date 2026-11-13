@@ -275,6 +275,10 @@ func (s *Store) migrate(ctx context.Context) error {
 		{"companies", "monthly_budget_usd", "REAL NOT NULL DEFAULT 0"},
 		{"companies", "country", "TEXT NOT NULL DEFAULT 'Nigeria'"},
 		{"companies", "ticker", "TEXT NOT NULL DEFAULT ''"},
+		{"financial_snapshots", "audit_status", "TEXT NOT NULL DEFAULT 'self_reported'"},
+		{"financial_snapshots", "audit_note", "TEXT NOT NULL DEFAULT ''"},
+		{"financial_snapshots", "auditor", "TEXT NOT NULL DEFAULT ''"},
+		{"financial_snapshots", "audit_file_id", "TEXT NOT NULL DEFAULT ''"},
 		{"companies", "parent_company_id", "TEXT NOT NULL DEFAULT ''"},
 		{"companies", "is_product", "INTEGER NOT NULL DEFAULT 0"},
 	}

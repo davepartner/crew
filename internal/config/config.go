@@ -32,6 +32,7 @@ type Config struct {
 	SMTPFrom           string
 	SMTPUser           string
 	SMTPPass           string
+	SearchURL          string
 }
 
 func Load() Config {
@@ -58,6 +59,7 @@ func Load() Config {
 		SMTPFrom:           env("CREW_SMTP_FROM", "Crew <noreply@paytrackify.com>"),
 		SMTPUser:           env("CREW_SMTP_USER", ""),
 		SMTPPass:           env("CREW_SMTP_PASS", ""),
+		SearchURL:          env("CREW_SEARCH_URL", "http://127.0.0.1:8888/search"),
 	}
 
 	if cfg.SecureCookies || cfg.Env == "production" {

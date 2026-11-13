@@ -12,6 +12,7 @@ import {
   type CompanyAdvice,
   type CompanyFile,
   type FinancialModel,
+  type FinancialSnapshot,
   type BusinessPreset,
 } from "../api";
 import { Link, navigate } from "../router";
@@ -624,7 +625,7 @@ function FilesCard() {
       <Button size="sm" onClick={() => input.current?.click()} loading={busy}>
         Upload a file
       </Button>
-      <p className="tiny muted">Text, CSV and JSON are read by the study. PDFs and images are stored but not parsed yet.</p>
+      <p className="tiny muted">Text, CSV, JSON, PDFs and images are read by the study. Scanned PDFs and images use OCR.</p>
 
       {files === null ? <Skeleton lines={2} /> : null}
       {files && files.length === 0 ? <p className="small muted">No files yet.</p> : null}
@@ -679,8 +680,10 @@ function FilesCard() {
 function FinancialCard({ currency }: { currency: string }) {
   const { push } = useToast();
   const [model, setModel] = useState<FinancialModel | null>(null);
+  const [snapshots, setSnapshots] = useState<FinancialSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [auditOpen, setAuditOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [form, setForm] = useState({
@@ -698,7 +701,10 @@ function FinancialCard({ currency }: { currency: string }) {
   useEffect(() => {
     api
       .financials()
-      .then((result) => setModel(result.model))
+      .then((result) => {
+        setModel(result.model);
+        setSnapshots(result.snapshots);
+      })
       .catch(() => setModel(null))
       .finally(() => setLoading(false));
   }, []);
@@ -724,6 +730,7 @@ function FinancialCard({ currency }: { currency: string }) {
         audited: form.audited,
       });
       setModel(result.model);
+      setSnapshots((current) => [result.snapshot, ...current]);
       setOpen(false);
       push("Financial model updated.");
     } catch (err) {
@@ -764,10 +771,23 @@ function FinancialCard({ currency }: { currency: string }) {
             <Metric label="Runway" value={model.runway_months > 0 ? `${model.runway_months.toFixed(1)} months` : "Profitable"} />
             <Metric label="Break-even" value={format(model.break_even_sales)} />
           </div>
-          <div className="row-between">
+          <div className="row-between" style={{ flexWrap: "wrap" }}>
             <span className="tiny muted">{model.period} · {model.source || "management numbers"}</span>
-            <Button size="sm" onClick={() => setOpen(true)}>Update</Button>
+            <span className="row" style={{ gap: 6 }}>
+              {snapshots[0]?.audit_status === "verified" ? (
+                <span className="badge badge-done">Verified against statement</span>
+              ) : snapshots[0]?.audit_status === "discrepancies" ? (
+                <span className="badge badge-todo">Discrepancies found</span>
+              ) : snapshots[0]?.audit_status === "evidence_attached" ? (
+                <span className="badge badge-working">Evidence attached</span>
+              ) : (
+                <span className="badge badge-todo">Self-reported</span>
+              )}
+              <Button size="sm" variant="quiet" onClick={() => setAuditOpen(true)}>Verify</Button>
+              <Button size="sm" onClick={() => setOpen(true)}>Update</Button>
+            </span>
           </div>
+          {snapshots[0]?.audit_note ? <p className="tiny muted">{snapshots[0].audit_note}</p> : null}
         </>
       ) : null}
 
@@ -817,7 +837,99 @@ function FinancialCard({ currency }: { currency: string }) {
         </label>
         {error ? <p className="form-error">{error}</p> : null}
       </Modal>
+
+      <AuditModal
+        open={auditOpen}
+        snapshot={snapshots[0] ?? null}
+        onClose={() => setAuditOpen(false)}
+        onAudited={(snapshot) => {
+          setSnapshots((current) => current.map((item) => (item.id === snapshot.id ? snapshot : item)));
+          setAuditOpen(false);
+          push(snapshot.audit_status === "verified" ? "Verified against the statement." : "Evidence attached. Check the note.");
+        }}
+      />
     </section>
+  );
+}
+
+function AuditModal({
+  open,
+  snapshot,
+  onClose,
+  onAudited,
+}: {
+  open: boolean;
+  snapshot: FinancialSnapshot | null;
+  onClose: () => void;
+  onAudited: (snapshot: FinancialSnapshot) => void;
+}) {
+  const [files, setFiles] = useState<CompanyFile[] | null>(null);
+  const [fileId, setFileId] = useState("");
+  const [auditor, setAuditor] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    setFiles(null);
+    setFileId("");
+    setError(null);
+    api.files().then((result) => {
+      setFiles(result.files);
+      if (result.files[0]) setFileId(result.files[0].id);
+    }).catch(() => setFiles([]));
+  }, [open]);
+
+  async function audit() {
+    if (!snapshot || fileId === "") return;
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.auditFinancials(snapshot.id, fileId, auditor);
+      onAudited(result.snapshot);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "We couldn't verify those numbers.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open={open}
+      title="Verify against the statement"
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="primary" onClick={audit} loading={busy} disabled={fileId === ""}>
+            Run check
+          </Button>
+        </>
+      }
+    >
+      <p className="small muted mb-16">
+        Upload the signed statement under Company files, then pick it here. Crew checks whether the declared
+        revenue, cost of sales and operating costs appear in the document. This is evidence checking, not a statutory audit.
+      </p>
+      {files === null ? <Skeleton lines={2} /> : null}
+      {files && files.length === 0 ? (
+        <p className="form-error">No files yet. Upload the statement in the Company files card first.</p>
+      ) : null}
+      {files && files.length > 0 ? (
+        <Field label="Audited statement" htmlFor="audit-file">
+          <Select id="audit-file" value={fileId} onChange={(event) => setFileId(event.target.value)}>
+            {files.map((file) => (
+              <option key={file.id} value={file.id}>{file.name}</option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
+      <Field label="Auditor or source" hint="Optional. The person or firm who signed the statement." htmlFor="audit-auditor">
+        <Input id="audit-auditor" value={auditor} onChange={(event) => setAuditor(event.target.value)} />
+      </Field>
+      {error ? <p className="form-error">{error}</p> : null}
+    </Modal>
   );
 }
 
@@ -910,6 +1022,7 @@ function ShareModal({
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState(`Advice for ${company.name}`);
   const [body, setBody] = useState("");
+  const [template, setTemplate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -937,7 +1050,7 @@ function ShareModal({
         await api.sendEmail({ to, subject, body });
         push("Report emailed.");
       } else {
-        await api.sendWhatsApp({ to, message: body });
+        await api.sendWhatsApp({ to, message: body, template });
         push("WhatsApp message sent.");
       }
       onClose();
@@ -975,6 +1088,12 @@ function ShareModal({
           onChange={(event) => setTo(event.target.value)}
         />
       </Field>
+      {kind === "whatsapp" ? (
+        <label className="checkbox-row">
+          <input type="checkbox" checked={template} onChange={(event) => setTemplate(event.target.checked)} />
+          <span>Use an approved template (outside the 24-hour window)</span>
+        </label>
+      ) : null}
       {kind === "email" ? (
         <Field label="Subject" htmlFor="share-subject">
           <Input id="share-subject" value={subject} onChange={(event) => setSubject(event.target.value)} />

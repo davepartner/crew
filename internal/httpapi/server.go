@@ -95,11 +95,19 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/financials", s.requireUser(s.requireCompany(s.handleFinancials)))
 	mux.HandleFunc("POST /api/financials", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleCreateFinancials))))
 	mux.HandleFunc("DELETE /api/financials/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteFinancials))))
+	mux.HandleFunc("POST /api/financials/{id}/audit", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleAuditFinancials))))
 
 	mux.HandleFunc("GET /api/files", s.requireUser(s.requireCompany(s.handleListFiles)))
 	mux.HandleFunc("POST /api/files", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleUploadFile))))
 	mux.HandleFunc("GET /api/files/{id}/download", s.requireUser(s.requireCompany(s.handleDownloadFile)))
 	mux.HandleFunc("DELETE /api/files/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteFile))))
+
+	mux.HandleFunc("GET /api/adaccounts", s.requireUser(s.requireCompany(s.handleAdAccounts)))
+	mux.HandleFunc("POST /api/adaccounts/{platform}/campaigns", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleCreateAdCampaign))))
+	mux.HandleFunc("POST /api/adaccounts/{platform}/campaigns/{id}/status", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleAdCampaignStatus))))
+	mux.HandleFunc("POST /api/adaccounts/{platform}/campaigns/{id}/budget", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleAdCampaignBudget))))
+
+	mux.HandleFunc("GET /api/portfolio", s.requireUser(s.requireCompany(s.handlePortfolio)))
 
 	mux.HandleFunc("GET /api/products", s.requireUser(s.requireCompany(s.handleListProducts)))
 	mux.HandleFunc("POST /api/products", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleCreateProduct))))

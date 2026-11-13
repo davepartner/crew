@@ -77,3 +77,19 @@ func TestStudyCompanyEndToEnd(t *testing.T) {
 		t.Fatalf("stored: %+v %v", stored, err)
 	}
 }
+
+func TestAuditNumbers(t *testing.T) {
+	snapshot := store.FinancialSnapshot{Revenue: 1200000, COGS: 400000, Opex: 350000}
+	status, _ := auditNumbers(snapshot, "Audited statement: revenue 1,200,000; cost of sales 400,000; operating expenses 350,000.")
+	if status != "verified" {
+		t.Fatalf("status: %s", status)
+	}
+	status, _ = auditNumbers(snapshot, "Revenue 1,200,000 only.")
+	if status != "discrepancies" {
+		t.Fatalf("partial: %s", status)
+	}
+	status, _ = auditNumbers(snapshot, "No numbers here.")
+	if status != "evidence_attached" {
+		t.Fatalf("evidence: %s", status)
+	}
+}

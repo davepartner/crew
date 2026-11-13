@@ -12,12 +12,14 @@ const specs: Record<string, { title: string; blurb: string; fields: FieldSpec[];
       { key: "phone_number_id", label: "Phone number ID", placeholder: "1234567890" },
       { key: "token", label: "Permanent access token", secret: true },
       { key: "default_to", label: "Default recipient", placeholder: "2348012345678", hint: "Optional. Country code, no plus." },
+      { key: "template_name", label: "Approved template name", placeholder: "job_update", hint: "Optional. Required outside Meta's 24-hour window." },
+      { key: "template_language", label: "Template language", placeholder: "en_US", hint: "Optional. Example: en_US." },
     ],
     testLabel: "Test connection",
   },
   meta_ads: {
     title: "Meta Ads",
-    blurb: "Read campaigns and spend from a Meta ad account. Read-only; Crew never changes budgets.",
+    blurb: "List campaigns, create paused campaigns, pause/enable and change daily budgets.",
     fields: [
       { key: "account_id", label: "Ad account ID", placeholder: "act_1234567890" },
       { key: "access_token", label: "Access token", secret: true },
@@ -26,7 +28,7 @@ const specs: Record<string, { title: string; blurb: string; fields: FieldSpec[];
   },
   tiktok_ads: {
     title: "TikTok Ads",
-    blurb: "Read campaigns from a TikTok advertiser account. Read-only.",
+    blurb: "List campaigns, create paused campaigns, pause/enable and change budgets.",
     fields: [
       { key: "advertiser_id", label: "Advertiser ID", placeholder: "7000000000000000000" },
       { key: "access_token", label: "Access token", secret: true },
@@ -35,7 +37,7 @@ const specs: Record<string, { title: string; blurb: string; fields: FieldSpec[];
   },
   google_ads: {
     title: "Google Ads",
-    blurb: "List the Google Ads accounts this developer token can access. Read-only.",
+    blurb: "List campaigns, create paused campaigns and pause/enable them. Budgets stay in Google Ads.",
     fields: [
       { key: "developer_token", label: "Developer token", secret: true },
       { key: "client_id", label: "OAuth client ID" },

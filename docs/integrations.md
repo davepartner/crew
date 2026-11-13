@@ -24,27 +24,33 @@ Meta WhatsApp Cloud API:
 - optional default recipient
 
 Crew sends text messages from your number. Meta only allows free-form text
-inside the 24-hour customer service window; outside it, use an approved
-template in Meta Business Manager.
+inside the 24-hour customer service window. For outside the window, add an
+approved template name and language in the integration, then tick **Use an
+approved template** when sending. The message text becomes the template's body
+parameter.
 
 ## Ad accounts
 
-Read-only connections:
+- **Meta Ads** — ad account ID + access token. Lists campaigns, creates paused
+  campaigns, pauses/enables campaigns and changes daily budgets.
+- **TikTok Ads** — advertiser ID + access token. Lists campaigns, creates paused
+  campaigns, pauses/enables campaigns and changes budgets.
+- **Google Ads** — developer token + OAuth client + refresh token. Lists
+  campaigns, creates paused campaigns and pauses/enables them. Budget changes
+  stay in Google Ads.
 
-- **Meta Ads** — ad account ID + access token. Reads campaign names, status and
-  objective.
-- **TikTok Ads** — advertiser ID + access token. Reads campaigns.
-- **Google Ads** — developer token + OAuth client + refresh token. Lists the
-  customer accounts the token can access.
-
-Crew never changes budgets, bids or campaign status. The tokens are encrypted
-at rest and never returned to the browser.
+Marketing → Ads Studio → **Live ad accounts** is the control surface. Enabling a
+campaign asks for confirmation because it can spend immediately. Tokens are
+encrypted at rest and never returned to the browser.
 
 ## Search
 
-- **Brave Search** unlocks arbitrary web search for the advisor.
-- Without it, the advisor uses live Google News industry results, Wikipedia and
-  the company website.
+- Crew ships with a built-in SearXNG endpoint at `CREW_SEARCH_URL` (default
+  `http://127.0.0.1:8888/search`). It gives arbitrary web results without a
+  third-party key.
+- A **Brave Search** key can be connected as a higher-quality fallback.
+- If neither is available, the advisor uses live Google News industry results,
+  Wikipedia and the company website.
 - A public **ticker** in Settings → Company adds live market data from Yahoo
   Finance.
 

@@ -65,8 +65,8 @@ tax or investment advice.
 ## Files and financials
 
 **Company files** accepts up to 20 files (10 MB each). Text, CSV and JSON are
-read by the study and the chat; PDFs and images are stored but not parsed yet.
-Files can be downloaded or removed.
+read directly. PDFs are parsed with `pdftotext`, scanned PDFs are rendered and
+OCR'd, and images are OCR'd with Tesseract. Files can be downloaded or removed.
 
 **Financial model** accepts one month of revenue, cost of sales, operating
 costs, cash, receivables and payables. Crew computes gross profit and margin,
@@ -76,6 +76,11 @@ card says management accounts or estimate.
 
 Adding a file, a financial snapshot or changing the company profile clears the
 cached deep study so the next run uses the new evidence.
+
+**Verify against the statement** compares the declared revenue, cost of sales
+and operating costs with an uploaded statement. The result is `verified`,
+`discrepancies` or `evidence_attached`. This is evidence checking, not a
+statutory audit.
 
 ## Products
 
@@ -94,9 +99,10 @@ tasks and campaigns, plus:
 - live Google News results for the industry (or Brave Search when a key is connected)
 - a live market quote when the company has a public ticker
 
-Answers cite those sources. It is told to say “I don't know” when the data does
-not support an answer. Every message is budgeted and recorded like other model
-calls.
+Answers cite those sources. Built-in SearXNG provides arbitrary web results
+without a third-party key; Brave is optional. A public ticker adds a live market
+quote. The chat is told to say “I don't know” when the data does not support an
+answer. Every message is budgeted and recorded like other model calls.
 
 ## Sending
 

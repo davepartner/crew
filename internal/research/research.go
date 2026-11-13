@@ -33,10 +33,16 @@ type Quote struct {
 
 var tags = regexp.MustCompile(`<[^>]+>`)
 
-func Search(ctx context.Context, query, braveKey string) []Result {
+func Search(ctx context.Context, query, braveKey, searxURL string) []Result {
 	query = strings.TrimSpace(query)
 	if query == "" {
 		return nil
+	}
+
+	if searxURL != "" {
+		if results := searx(ctx, query, searxURL); len(results) > 0 {
+			return results
+		}
 	}
 
 	if braveKey != "" {
@@ -46,6 +52,47 @@ func Search(ctx context.Context, query, braveKey string) []Result {
 	}
 
 	return news(ctx, query)
+}
+
+func searx(ctx context.Context, query, base string) []Result {
+	endpoint := strings.TrimRight(base, "/") + "?q=" + url.QueryEscape(query) + "&format=json&safesearch=0"
+	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	request.Header.Set("User-Agent", "CrewResearch/1.0")
+	request.Header.Set("Accept", "application/json")
+
+	response, err := (&http.Client{Timeout: 12 * time.Second}).Do(request)
+	if err != nil || response.StatusCode != http.StatusOK {
+		return nil
+	}
+	defer response.Body.Close()
+
+	var payload struct {
+		Results []struct {
+			Title   string `json:"title"`
+			URL     string `json:"url"`
+			Content string `json:"content"`
+			Engine  string `json:"engine"`
+		} `json:"results"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 2<<20)).Decode(&payload); err != nil {
+		return nil
+	}
+
+	out := make([]Result, 0, 5)
+	for _, item := range payload.Results {
+		if len(out) >= 5 {
+			break
+		}
+		if item.Title == "" || item.URL == "" {
+			continue
+		}
+		out = append(out, Result{
+			Title: item.Title, URL: item.URL,
+			Snippet:  strings.Join(strings.Fields(strip(item.Content)), " "),
+			Provider: "Web",
+		})
+	}
+	return out
 }
 
 func brave(ctx context.Context, query, key string) []Result {

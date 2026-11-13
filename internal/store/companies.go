@@ -172,6 +172,9 @@ func (s *Store) DeleteCompany(ctx context.Context, userID, id string) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM notifications WHERE company_id = ?`, id); err != nil {
 			return err
 		}
+		if _, err := tx.ExecContext(ctx, `DELETE FROM ad_campaigns WHERE company_id = ?`, id); err != nil {
+			return err
+		}
 		_, err = tx.ExecContext(ctx, `DELETE FROM companies WHERE id = ?`, id)
 		return err
 	})

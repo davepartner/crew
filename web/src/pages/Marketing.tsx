@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
+import { AdsStudio } from "./AdsStudio";
 import { api, ApiError, type Agent, type MarketingReport, type Playbook, type Skill } from "../api";
 import { Link, navigate } from "../router";
 import { money } from "../time";
 import { Button, Field, Input, Modal, Select, Tabs, Textarea, useToast } from "../ui";
 
 const tabs = [
+  { id: "ads", label: "Ads Studio" },
   { id: "skills", label: "Skills" },
   { id: "reverse", label: "Reverse-engineer" },
 ];
 
 export function Marketing() {
-  const [tab, setTab] = useState("skills");
+  const [tab, setTab] = useState("ads");
 
   return (
     <>
@@ -18,14 +20,14 @@ export function Marketing() {
         <div>
           <h1 className="page-title">Marketing</h1>
           <p className="page-sub">
-            A library of marketing playbooks, and a teardown tool that explains how another company grows.
+            Build platform-native Meta, TikTok and YouTube campaigns, or study the playbooks behind them.
           </p>
         </div>
       </header>
 
       <Tabs items={tabs} active={tab} onChange={setTab} />
 
-      {tab === "skills" ? <SkillsLibrary /> : <ReverseEngineer />}
+      {tab === "ads" ? <AdsStudio /> : tab === "skills" ? <SkillsLibrary /> : <ReverseEngineer />}
     </>
   );
 }

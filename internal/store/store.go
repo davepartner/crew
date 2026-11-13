@@ -150,6 +150,18 @@ func (s *Store) migrate(ctx context.Context) error {
 			completed_at TEXT
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_goals_company ON goals(company_id, completed_at)`,
+		`CREATE TABLE IF NOT EXISTS ad_campaigns (
+			id TEXT PRIMARY KEY,
+			user_id TEXT NOT NULL,
+			company_id TEXT NOT NULL,
+			title TEXT NOT NULL,
+			brief TEXT NOT NULL,
+			result TEXT NOT NULL,
+			model TEXT NOT NULL DEFAULT '',
+			cost_usd REAL NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE INDEX IF NOT EXISTS idx_ad_campaigns_company ON ad_campaigns(company_id, created_at)`,
 		`CREATE TABLE IF NOT EXISTS notifications (
 			id TEXT PRIMARY KEY,
 			user_id TEXT NOT NULL,

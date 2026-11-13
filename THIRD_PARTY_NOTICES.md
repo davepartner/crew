@@ -21,3 +21,32 @@ The analyst harness in `internal/skills/reverse/` is copied from `harness/`.
 Crew shows the source link in the reverse-engineering tool.
 
 Both projects are independent and do not endorse Crew.
+
+
+## Claude Ads
+
+- Source: https://github.com/AgriciDaniel/claude-ads
+- Copyright (c) 2026 Daniel Agrici (AgriciDaniel)
+- MIT License
+
+Crew's Ads Studio distills the platform-native creative rules, copy frameworks and
+non-fabrication guardrails from this project.
+
+## AI Ads Strategist
+
+- Source: https://github.com/zubair-trabzada/ai-ads-claude
+- Copyright (c) 2026 Zubair Trabzada
+- MIT License
+
+Crew's Ads Studio distills the hook categories, campaign brief structure and test-plan
+thinking from this project.
+
+## Creatify ad skills
+
+- Sources: https://github.com/creatify-ai/video-ad-generator and
+  https://github.com/creatify-ai/ad-creative-evaluator
+- Copyright (c) 2026 Creatify AI
+- MIT License
+
+Crew's Ads Studio distills the video-ad brief, script structures and creative scoring
+rubric from these projects.

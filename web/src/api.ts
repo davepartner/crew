@@ -97,6 +97,80 @@ export type Member = {
 
 export type Invite = { id: string; email: string; role: string; created_at: string };
 
+export type AdsBrief = {
+  title: string;
+  product: string;
+  audience: string;
+  problem: string;
+  proof: string;
+  price: string;
+  url: string;
+  objective: string;
+  tone: string;
+  extra: string;
+  platforms: string[];
+};
+
+export type AdScriptBeat = { time: string; beat?: string; line?: string; visual?: string };
+
+export type AdConcept = {
+  name: string;
+  angle: string;
+  hook: string;
+  primary_text?: string;
+  headline?: string;
+  description?: string;
+  cta?: string;
+  format?: string;
+  placement?: string;
+  visual?: string;
+  script_beats?: string[];
+  script?: AdScriptBeat[];
+  caption?: string;
+  hashtags?: string[];
+  sound?: string;
+  text_overlays?: string[];
+  voiceover?: string;
+  on_screen_text?: string[];
+  end_card?: string;
+  thumbnail?: string;
+};
+
+export type AdResult = {
+  campaign_name: string;
+  big_idea: string;
+  strategy: {
+    objective: string;
+    audience_summary: string;
+    offer: string;
+    positioning: string;
+    proof: string[];
+    unknowns: string[];
+  };
+  personas: { name: string; who: string; pain: string; trigger: string; objection: string; platforms: string[] }[];
+  angles: { name: string; insight: string; promise: string; proof: string; emotion: string }[];
+  hooks: { text: string; category: string; platform: string; why: string }[];
+  platforms: {
+    meta?: { concepts: AdConcept[]; notes: string[] };
+    tiktok?: { concepts: AdConcept[]; notes: string[] };
+    youtube?: { concepts: AdConcept[]; notes: string[] };
+  };
+  testing_plan: { priority: number; element: string; a: string; b: string; hypothesis: string }[];
+  budget_split: { platform: string; percent: number; why: string }[];
+  compliance: { claims_to_verify: string[]; avoid: string[]; spec_checks: string[] };
+  scores: Record<string, number>;
+};
+
+export type AdCampaign = {
+  id: string;
+  title: string;
+  brief: AdsBrief;
+  result: AdResult;
+  model: string;
+  cost_usd: number;
+  created_at: string;
+};
+
 export type Announcement = {
   id: number;
   title: string;
@@ -419,6 +493,16 @@ export const api = {
     request<{ ok: boolean }>(`/api/providers/${key}`, { method: "DELETE" }),
   testProvider: (key: string) =>
     request<{ ok: boolean; message: string }>(`/api/providers/${key}/test`, { method: "POST" }),
+
+  generateAds: (brief: AdsBrief) =>
+    request<{ ok: boolean; campaign: AdCampaign }>("/api/ads/generate", {
+      method: "POST",
+      body: JSON.stringify(brief),
+    }),
+  adCampaigns: () => request<{ ok: boolean; campaigns: AdCampaign[] }>("/api/ads/campaigns"),
+  adCampaign: (id: string) => request<{ ok: boolean; campaign: AdCampaign }>(`/api/ads/campaigns/${id}`),
+  deleteAdCampaign: (id: string) =>
+    request<{ ok: boolean }>(`/api/ads/campaigns/${id}`, { method: "DELETE" }),
 
   announcements: () => request<{ ok: boolean; announcements: Announcement[] }>("/api/announcements"),
   notifications: () =>

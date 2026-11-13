@@ -99,6 +99,10 @@ func (s *Server) routes(mux *http.ServeMux) {
 
 	// Marketing library and lab.
 	mux.HandleFunc("GET /api/skills", s.requireUser(s.handleSkills))
+	mux.HandleFunc("POST /api/ads/generate", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleGenerateAds))))
+	mux.HandleFunc("GET /api/ads/campaigns", s.requireUser(s.requireCompany(s.handleListAdCampaigns)))
+	mux.HandleFunc("GET /api/ads/campaigns/{id}", s.requireUser(s.requireCompany(s.handleGetAdCampaign)))
+	mux.HandleFunc("DELETE /api/ads/campaigns/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteAdCampaign))))
 	mux.HandleFunc("GET /api/skills/{key}", s.requireUser(s.handleSkill))
 	mux.HandleFunc("POST /api/marketing/analyze", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleMarketingAnalyze))))
 

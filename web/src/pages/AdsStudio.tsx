@@ -445,21 +445,17 @@ function CampaignView({
       {(result.testing_plan ?? []).length > 0 ? (
         <section className="ad-section">
           <h3 className="section-title mb-8">Test plan</h3>
-          <div className="ad-table">
-            <div className="ad-table-head">
-              <span>#</span>
-              <span>Element</span>
-              <span>A</span>
-              <span>B</span>
-              <span>Hypothesis</span>
-            </div>
+          <div className="ad-tests">
             {result.testing_plan.map((test) => (
-              <div className="ad-table-row" key={test.priority}>
-                <span>{test.priority}</span>
-                <span>{test.element}</span>
-                <span>{test.a}</span>
-                <span>{test.b}</span>
-                <span>{test.hypothesis}</span>
+              <div className="ad-test" key={test.priority}>
+                <div className="row-between">
+                  <strong>
+                    #{test.priority} · {test.element}
+                  </strong>
+                </div>
+                <p><span className="ad-label">A</span> {test.a}</p>
+                <p><span className="ad-label">B</span> {test.b}</p>
+                <p className="tiny muted">{test.hypothesis}</p>
               </div>
             ))}
           </div>

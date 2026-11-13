@@ -848,6 +848,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   gap: 16px;
   align-items: start;
 }
+.marketing-layout > * { min-width: 0; }
 
 .report-text {
   white-space: pre-wrap;
@@ -1098,6 +1099,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 
 .ad-section { margin-top: 28px; padding-top: 20px; border-top: 1px solid var(--line); }
 
+.ad-concept, .ad-hook, .ad-compliance, .ad-budget, .ad-test {
+  overflow-wrap: anywhere;
+}
+
 .ad-concept {
   margin-top: 14px;
   padding: 16px;
@@ -1145,16 +1150,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .ad-hook:hover { border-color: var(--line-strong); }
 .ad-hook-text { font-size: 13px; font-weight: 550; }
 
-.ad-table { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
-.ad-table-head, .ad-table-row {
-  display: grid;
-  grid-template-columns: 32px 1.1fr 1fr 1fr 1.6fr;
-  gap: 10px;
-  padding: 8px 10px;
-  font-size: 12.5px;
-}
-.ad-table-head { background: var(--surface-2); color: var(--muted); text-transform: uppercase; font-size: 10.5px; letter-spacing: 0.05em; }
-.ad-table-row { border-top: 1px solid var(--line); color: var(--ink-soft); }
+.ad-tests { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.ad-test { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 11px 12px; background: var(--surface); }
+.ad-test p { margin: 6px 0 0; font-size: 12.5px; line-height: 1.45; color: var(--ink-soft); }
+.ad-test .ad-label { margin-right: 4px; }
 
 .ad-compliance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .ad-compliance ul { margin: 5px 0 0; padding-left: 18px; font-size: 12.5px; color: var(--ink-soft); line-height: 1.45; }
@@ -1172,12 +1171,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .ad-strategy, .ad-compliance, .ad-budget { grid-template-columns: minmax(0, 1fr); }
   .ad-scores { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .ad-hooks { grid-template-columns: minmax(0, 1fr); }
-  .ad-table-head, .ad-table-row { grid-template-columns: 28px 1fr 1fr 1.4fr; }
-  .ad-table-head span:nth-child(4), .ad-table-row span:nth-child(4) { display: none; }
+  .ad-tests { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (max-width: 620px) {
   .ad-platforms { grid-template-columns: minmax(0, 1fr); }
-  .ad-table-head, .ad-table-row { grid-template-columns: 24px 1fr 1.2fr; }
-  .ad-table-head span:nth-child(2), .ad-table-row span:nth-child(2) { display: none; }
+  .ad-tests { grid-template-columns: minmax(0, 1fr); }
 }

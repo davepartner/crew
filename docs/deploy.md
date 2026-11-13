@@ -33,6 +33,9 @@ CREW_ENV=production
 CREW_SECURE_COOKIES=true
 CREW_TRUST_PROXY=true
 CREW_SECRET_KEY=<openssl rand -hex 32>
+CREW_PLATFORM_PROVIDER=deepseek
+CREW_PLATFORM_MODEL=deepseek-chat
+CREW_PLATFORM_API_KEY=<server-side key>
 ```
 
 `CREW_SECRET_KEY` encrypts provider API keys. If it is missing, Crew creates a `0600` file

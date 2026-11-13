@@ -128,10 +128,13 @@ func TestMarketingAnalyzeEndToEnd(t *testing.T) {
 	addressAllowed = func(net.IP) bool { return true }
 	portAllowed = func(string) bool { return true }
 	previousModel := marketingModelFor
-	marketingModelFor = func(_ *Server, _ context.Context, _ string) (string, modelcatalog.Provider, string, error) {
-		return "fake", modelcatalog.Provider{
-			Key: "fake", Name: "Fake", Kind: "openai", BaseURL: modelServer.URL, DefaultModel: "fake-model",
-		}, "sk-fake", nil
+	marketingModelFor = func(_ *Server, _ context.Context, _ string) (resolvedModel, error) {
+		return resolvedModel{
+			Provider: modelcatalog.Provider{
+				Key: "fake", Name: "Fake", Kind: "openai", BaseURL: modelServer.URL, DefaultModel: "fake-model",
+			},
+			Model: "fake-model", APIKey: "sk-fake", Source: "user",
+		}, nil
 	}
 	defer func() {
 		addressAllowed, portAllowed = previousAddress, previousPort

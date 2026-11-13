@@ -104,6 +104,7 @@ type modelConfig struct {
 	BaseURL    string `json:"base_url"`
 	Model      string `json:"model"`
 	APIKey     string `json:"api_key"`
+	Mode       string `json:"mode"`
 }
 
 func (w *worker) claim() (*claimResponse, error) {
@@ -114,7 +115,7 @@ func (w *worker) claim() (*claimResponse, error) {
 	return &out, nil
 }
 
-func (w *worker) askModel(model modelConfig, t *task, instructions string) (string, error) {
+func (w *worker) askModel(model modelConfig, t *task, instructions string) (string, []llm.ToolCall, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
 	defer cancel()
 
@@ -125,12 +126,32 @@ func (w *worker) askModel(model modelConfig, t *task, instructions string) (stri
 
 	prompt := "Task: " + t.Title + "\n\n" + t.Details + "\n\nReturn the finished work, ready for a human to review. Be concise and concrete."
 
-	return llm.Complete(ctx, llm.Config{
+	if model.Mode == "proxy" {
+		var out struct {
+			Text      string         `json:"text"`
+			Cost      float64        `json:"cost"`
+			ToolCalls []llm.ToolCall `json:"tool_calls"`
+		}
+		err := w.do(http.MethodPost, "/api/runner/ai", map[string]any{
+			"system":    system,
+			"prompt":    prompt,
+			"maxTokens": 1600,
+			"taskId":    t.ID,
+			"tools":     true,
+		}, &out)
+		if err == nil && out.Cost > 0 {
+			log.Printf("model cost $%.4f", out.Cost)
+		}
+		return out.Text, out.ToolCalls, err
+	}
+
+	text, err := llm.Complete(ctx, llm.Config{
 		Kind:    model.Kind,
 		BaseURL: model.BaseURL,
 		Model:   model.Model,
 		APIKey:  model.APIKey,
 	}, system, prompt, 1600)
+	return text, nil, err
 }
 
 func (w *worker) run(t *task, instructions string) {
@@ -140,10 +161,39 @@ func (w *worker) run(t *task, instructions string) {
 	if w.mode != "command" {
 		var model modelConfig
 		if err := w.do(http.MethodGet, "/api/runner/model", nil, &model); err == nil && model.Configured {
-			result, err := w.askModel(model, t, instructions)
-			if err == nil && strings.TrimSpace(result) != "" {
+			result, calls, err := w.askModel(model, t, instructions)
+			if err == nil && (strings.TrimSpace(result) != "" || len(calls) > 0) {
+				delegated := make([]string, 0)
+				for _, call := range calls {
+					if call.Name != "delegate_task" {
+						continue
+					}
+
+					var args struct {
+						Agent   string `json:"agent"`
+						Title   string `json:"title"`
+						Details string `json:"details"`
+					}
+					if json.Unmarshal([]byte(call.Arguments), &args) != nil || args.Agent == "" || args.Title == "" {
+						continue
+					}
+
+					var out struct {
+						Agent string `json:"agent"`
+					}
+					if err := w.do(http.MethodPost, "/api/runner/delegate", args, &out); err == nil {
+						delegated = append(delegated, out.Agent)
+						_ = w.do(http.MethodPost, "/api/runner/tasks/"+t.ID+"/progress",
+							map[string]string{"message": "Handed “" + args.Title + "” to " + out.Agent}, nil)
+					}
+				}
+
+				summary := result
+				if len(delegated) > 0 {
+					summary = "Delegated to " + strings.Join(delegated, ", ") + ".\n\n" + summary
+				}
 				_ = w.do(http.MethodPost, "/api/runner/tasks/"+t.ID+"/complete",
-					map[string]any{"summary": result, "needsReview": w.review}, nil)
+					map[string]any{"summary": summary, "needsReview": w.review}, nil)
 				log.Printf("finished with %s: %s", model.Model, t.Title)
 				return
 			}

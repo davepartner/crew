@@ -108,13 +108,16 @@ func (s *Server) handleAuthVerify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	accepted, _ := s.store.AcceptInvites(r.Context(), local.Email, local.ID)
+
 	s.setSession(w, result.Token)
 	s.cache.Set(result.Token, result.User)
 
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":    true,
-		"user":  userPayload(local),
-		"isNew": result.IsNew,
+		"ok":              true,
+		"user":            userPayload(local),
+		"isNew":           result.IsNew,
+		"invitesAccepted": accepted,
 	})
 }
 

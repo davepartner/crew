@@ -312,9 +312,15 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 		configured[key.Provider] = key
 	}
 
+	platformKey := ""
+	if s.cfg.PlatformEnabled() {
+		platformKey = s.cfg.PlatformProvider
+	}
+
 	list := make([]map[string]any, 0, len(modelcatalog.All()))
 	for _, provider := range modelcatalog.Public() {
 		key, ok := configured[provider.Key]
+		included := provider.Key == platformKey
 		list = append(list, map[string]any{
 			"key":           provider.Key,
 			"name":          provider.Name,
@@ -326,7 +332,8 @@ func (s *Server) handleProviders(w http.ResponseWriter, r *http.Request) {
 			"free_note":     provider.FreeNote,
 			"default_model": provider.DefaultModel,
 			"models":        provider.Models,
-			"configured":    ok,
+			"configured":    ok || included,
+			"platform":      included,
 			"last4":         key.Last4,
 		})
 	}

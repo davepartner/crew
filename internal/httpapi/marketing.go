@@ -61,42 +61,9 @@ func (s *Server) handleMarketingAnalyze(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	key, provider, apiKey, err := marketingModelFor(s, r.Context(), id.UserID)
-	if err != nil {
-		writeJSON(w, http.StatusConflict, map[string]any{
-			"ok":    false,
-			"code":  "no_model",
-			"error": "Add an AI model key in Settings → AI models, then try again.",
-		})
-		return
-	}
-
 	page, err := fetchPage(r.Context(), rawURL)
 	if err != nil {
 		writeError(w, http.StatusUnprocessableEntity, err.Error())
-		return
-	}
-
-	system := skills.Harness(playbook, 0)
-	prompt := buildMarketingPrompt(page, trim(body.Focus, 400), playbook)
-
-	ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
-	defer cancel()
-
-	report, err := llm.Complete(ctx, llm.Config{
-		Kind:    provider.Kind,
-		BaseURL: provider.BaseURL,
-		Model:   provider.DefaultModel,
-		APIKey:  apiKey,
-	}, system, prompt, 2600)
-	if err != nil {
-		writeError(w, http.StatusBadGateway, "The model couldn't finish that analysis: "+err.Error())
-		return
-	}
-
-	report = strings.TrimSpace(report)
-	if report == "" {
-		writeError(w, http.StatusBadGateway, "The model returned an empty report. Please try again.")
 		return
 	}
 
@@ -123,6 +90,49 @@ func (s *Server) handleMarketingAnalyze(w http.ResponseWriter, r *http.Request) 
 		}
 	}
 
+	model, err := marketingModelFor(s, r.Context(), id.UserID)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"ok":    false,
+			"code":  "no_model",
+			"error": "Add an AI model key in Settings → AI models, then try again.",
+		})
+		return
+	}
+
+	if blocked, err := s.checkBudget(r.Context(), id.UserID, company.ID, agentID); err != nil {
+		writeError(w, http.StatusInternalServerError, "We couldn't check the AI budget.")
+		return
+	} else if blocked != "" {
+		writeJSON(w, http.StatusPaymentRequired, map[string]any{"ok": false, "code": "budget", "error": blocked})
+		return
+	}
+
+	system := skills.Harness(playbook, 0)
+	prompt := buildMarketingPrompt(page, trim(body.Focus, 400), playbook)
+
+	ctx, cancel := context.WithTimeout(r.Context(), 150*time.Second)
+	defer cancel()
+
+	result, err := llm.CompleteResult(ctx, llm.Config{
+		Kind:    model.Provider.Kind,
+		BaseURL: model.Provider.BaseURL,
+		Model:   model.Model,
+		APIKey:  model.APIKey,
+	}, system, prompt, 2600)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "The model couldn't finish that analysis: "+err.Error())
+		return
+	}
+
+	report := strings.TrimSpace(result.Text)
+	if report == "" {
+		writeError(w, http.StatusBadGateway, "The model returned an empty report. Please try again.")
+		return
+	}
+
+	cost := s.saveUsage(r.Context(), id.UserID, company.ID, agentID, "", model, result.Usage)
+
 	host := page.URL
 	if parsed, err := url.Parse(page.URL); err == nil {
 		host = parsed.Host
@@ -144,6 +154,8 @@ func (s *Server) handleMarketingAnalyze(w http.ResponseWriter, r *http.Request) 
 		}
 		_ = s.store.AddActivity(r.Context(), id.UserID, company.ID, "marketing_analysis",
 			"Marketing lab finished a teardown of "+host, task.ID, agentID)
+		_ = s.store.NotifyCompany(r.Context(), company.ID, "marketing",
+			"Marketing teardown ready", host, task.ID)
 	} else {
 		task = store.Task{}
 	}
@@ -151,7 +163,8 @@ func (s *Server) handleMarketingAnalyze(w http.ResponseWriter, r *http.Request) 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":     true,
 		"report": report,
-		"model":  provider.Name + " · " + provider.DefaultModel,
+		"model":  model.Provider.Name + " · " + model.Model,
+		"cost":   cost,
 		"evidence": map[string]any{
 			"url":         page.URL,
 			"title":       page.Title,
@@ -160,21 +173,20 @@ func (s *Server) handleMarketingAnalyze(w http.ResponseWriter, r *http.Request) 
 			"truncated":   page.Truncated,
 		},
 		"task":  task,
-		"key":   key,
 		"agent": agentID,
 	})
 }
 
 // marketingModelFor is a seam for tests; production always uses the signed-in
 // person's first configured provider.
-var marketingModelFor = func(s *Server, ctx context.Context, userID string) (string, modelcatalog.Provider, string, error) {
+var marketingModelFor = func(s *Server, ctx context.Context, userID string) (resolvedModel, error) {
 	return s.modelForMarketing(ctx, userID)
 }
 
-func (s *Server) modelForMarketing(ctx context.Context, userID string) (string, modelcatalog.Provider, string, error) {
+func (s *Server) modelForMarketing(ctx context.Context, userID string) (resolvedModel, error) {
 	keys, err := s.store.ListProviderKeys(ctx, userID)
 	if err != nil {
-		return "", modelcatalog.Provider{}, "", err
+		return resolvedModel{}, err
 	}
 
 	for _, key := range keys {
@@ -192,10 +204,14 @@ func (s *Server) modelForMarketing(ctx context.Context, userID string) (string, 
 			continue
 		}
 
-		return key.Provider, provider, apiKey, nil
+		return resolvedModel{Provider: provider, Model: provider.DefaultModel, APIKey: apiKey, Source: "user"}, nil
 	}
 
-	return "", modelcatalog.Provider{}, "", store.ErrNotFound
+	if platform, ok := s.platformModel(); ok {
+		return platform, nil
+	}
+
+	return resolvedModel{}, store.ErrNotFound
 }
 
 func buildMarketingPrompt(page pageEvidence, focus, playbook string) string {

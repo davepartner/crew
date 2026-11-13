@@ -991,3 +991,49 @@ button, input, select, textarea { font: inherit; color: inherit; }
 @media (max-width: 620px) {
   .goal-grid { grid-template-columns: minmax(0, 1fr); }
 }
+
+
+/* ---------- notifications ---------- */
+
+.notif-count {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--danger);
+  color: white;
+  font-size: 10px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(340px, 88vw);
+  padding: 8px;
+  z-index: 40;
+  box-shadow: var(--shadow-lg);
+}
+
+.notif-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 8px;
+  border: none;
+  background: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.notif-item:hover { background: var(--surface-2); }
+.notif-item.unread { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.notif-title { font-size: 13px; font-weight: 600; }
+.notif-body { font-size: 12px; color: var(--muted); }

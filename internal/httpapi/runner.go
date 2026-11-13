@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/davepartner/crew/internal/modelcatalog"
+	"github.com/davepartner/crew/internal/llm"
 	"github.com/davepartner/crew/internal/skills"
 	"github.com/davepartner/crew/internal/store"
 )
@@ -74,6 +74,10 @@ func (s *Server) handleRunnerClaim(w http.ResponseWriter, r *http.Request) {
 	instructions := agent.Agent.Instructions
 	if len(agent.Agent.Skills) > 0 {
 		instructions += skills.Prompt(agent.Agent.Skills, 24000)
+	}
+	if agent.Agent.CanDelegate {
+		instructions += "\n\nYou can hand part of this work to another helper with the delegate_task tool. " +
+			"Use the helper's exact name. Delegated tasks are counted against the company budget."
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
@@ -163,59 +167,175 @@ func (s *Server) handleRunnerComplete(w http.ResponseWriter, r *http.Request) {
 	}
 	_ = s.store.AddActivity(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, "task_finished", message, task.ID, agent.Agent.ID)
 
+	if body.NeedsReview {
+		_ = s.store.NotifyCompany(r.Context(), agent.Agent.CompanyID, "review",
+			agent.Agent.Name+" needs your OK", task.Title, task.ID)
+	}
+
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true, "task": updated})
 }
 
-// handleRunnerModel hands the helper the model configuration it should use.
-// The key is decrypted only for the holder of a valid helper key.
+// handleRunnerModel tells the helper which model Crew will run for it. The
+// key stays on the server; the helper calls the proxy below.
 func (s *Server) handleRunnerModel(w http.ResponseWriter, r *http.Request) {
 	agent := agentFrom(r)
 
-	if agent.Agent.ModelProvider == "" || agent.Agent.ModelName == "" {
+	model, err := s.modelForAgent(r.Context(), agent.Agent)
+	if err != nil {
 		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "configured": false, "reason": "no_model"})
-		return
-	}
-
-	provider, ok := modelcatalog.ByKey(agent.Agent.ModelProvider)
-	if !ok {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "configured": false, "reason": "unknown_provider"})
-		return
-	}
-
-	if provider.Key == "ollama" {
-		writeJSON(w, http.StatusOK, map[string]any{
-			"ok":         true,
-			"configured": true,
-			"provider":   provider.Key,
-			"kind":       provider.Kind,
-			"base_url":   provider.BaseURL,
-			"model":      agent.Agent.ModelName,
-			"api_key":    "",
-		})
-		return
-	}
-
-	cipherText, err := s.store.ProviderKeyCipher(r.Context(), agent.Agent.UserID, provider.Key)
-	if err != nil {
-		writeJSON(w, http.StatusOK, map[string]any{"ok": true, "configured": false, "reason": "no_key"})
-		return
-	}
-
-	key, err := s.cipher.Decrypt(cipherText)
-	if err != nil {
-		writeError(w, http.StatusInternalServerError, "We couldn't read that model key.")
 		return
 	}
 
 	writeJSON(w, http.StatusOK, map[string]any{
 		"ok":         true,
 		"configured": true,
-		"provider":   provider.Key,
-		"kind":       provider.Kind,
-		"base_url":   provider.BaseURL,
-		"model":      agent.Agent.ModelName,
-		"api_key":    key,
+		"provider":   model.Provider.Key,
+		"kind":       model.Provider.Kind,
+		"base_url":   model.Provider.BaseURL,
+		"model":      model.Model,
+		"mode":       "proxy",
+		"platform":   model.Source == "platform",
 	})
+}
+
+type runnerAIRequest struct {
+	System    string `json:"system"`
+	Prompt    string `json:"prompt"`
+	MaxTokens int    `json:"maxTokens"`
+	TaskID    string `json:"taskId"`
+	Tools     bool   `json:"tools"`
+}
+
+// handleRunnerAI is the only place a model key is used for helper work. The
+// helper never receives the key, so the shared platform credential cannot be
+// extracted by creating a helper.
+func (s *Server) handleRunnerAI(w http.ResponseWriter, r *http.Request) {
+	agent := agentFrom(r)
+
+	var body runnerAIRequest
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if trim(body.Prompt, 60000) == "" {
+		writeError(w, http.StatusUnprocessableEntity, "The prompt is empty.")
+		return
+	}
+
+	model, err := s.modelForAgent(r.Context(), agent.Agent)
+	if err != nil {
+		writeJSON(w, http.StatusConflict, map[string]any{
+			"ok":    false,
+			"code":  "no_model",
+			"error": "No model is available for this helper. Add a key in Settings → AI models.",
+		})
+		return
+	}
+
+	blocked, err := s.checkBudget(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, agent.Agent.ID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "We couldn't check the AI budget.")
+		return
+	}
+	if blocked != "" {
+		writeJSON(w, http.StatusPaymentRequired, map[string]any{
+			"ok":    false,
+			"code":  "budget",
+			"error": blocked,
+		})
+		return
+	}
+
+	maxTokens := body.MaxTokens
+	if maxTokens <= 0 || maxTokens > 8000 {
+		maxTokens = 1600
+	}
+
+	var tools []llm.Tool
+	if body.Tools && agent.Agent.CanDelegate {
+		tools = []llm.Tool{{
+			Name:        "delegate_task",
+			Description: "Hand a piece of work to another helper on the same team. Use their exact name.",
+			Parameters: map[string]any{
+				"type": "object",
+				"properties": map[string]any{
+					"agent":   map[string]any{"type": "string", "description": "The other helper's exact name."},
+					"title":   map[string]any{"type": "string", "description": "A short task title."},
+					"details": map[string]any{"type": "string", "description": "What they should do."},
+				},
+				"required": []string{"agent", "title"},
+			},
+		}}
+	}
+
+	result, err := llm.CompleteTools(r.Context(), llm.Config{
+		Kind:    model.Provider.Kind,
+		BaseURL: model.Provider.BaseURL,
+		Model:   model.Model,
+		APIKey:  model.APIKey,
+	}, body.System, body.Prompt, maxTokens, tools)
+	if err != nil {
+		writeError(w, http.StatusBadGateway, "The model couldn't answer: "+err.Error())
+		return
+	}
+
+	cost := s.saveUsage(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, agent.Agent.ID, body.TaskID, model, result.Usage)
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok":         true,
+		"text":       result.Text,
+		"usage":      result.Usage,
+		"cost":       cost,
+		"model":      model.Model,
+		"source":     model.Source,
+		"tool_calls": result.ToolCalls,
+	})
+}
+
+func (s *Server) handleRunnerDelegate(w http.ResponseWriter, r *http.Request) {
+	agent := agentFrom(r)
+
+	var body struct {
+		Agent   string `json:"agent"`
+		Title   string `json:"title"`
+		Details string `json:"details"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	if !agent.Agent.CanDelegate {
+		writeError(w, http.StatusForbidden, "This helper isn't allowed to delegate.")
+		return
+	}
+
+	title := trim(body.Title, 200)
+	if title == "" {
+		writeError(w, http.StatusUnprocessableEntity, "The delegated task needs a title.")
+		return
+	}
+
+	target, err := s.store.FindAgentByName(r.Context(), agent.Agent.CompanyID, strings.TrimSpace(body.Agent))
+	if err != nil {
+		writeError(w, http.StatusNotFound, "There is no helper with that name.")
+		return
+	}
+	if target.ID == agent.Agent.ID {
+		writeError(w, http.StatusUnprocessableEntity, "A helper can't delegate to itself.")
+		return
+	}
+
+	task, err := s.store.CreateTask(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, title, trim(body.Details, 8000), target.ID)
+	if err != nil {
+		writeError(w, http.StatusUnprocessableEntity, "That task couldn't be created. The monthly task budget may be used up.")
+		return
+	}
+
+	_ = s.store.AddActivity(r.Context(), agent.Agent.UserID, agent.Agent.CompanyID, "delegated",
+		agent.Agent.Name+" handed “"+task.Title+"” to "+target.Name, task.ID, target.ID)
+
+	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "task": task, "agent": target.Name})
 }
 
 // runnerTask loads a task and proves it is checked out to this helper, so one

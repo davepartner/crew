@@ -107,8 +107,11 @@ export function ModelsPanel({ onConfigured }: { onConfigured?: (provider: Provid
               <div style={{ minWidth: 0 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <span style={{ fontWeight: 650 }}>{provider.name}</span>
+                  {provider.platform ? <span className="badge badge-done">Included</span> : null}
                   {provider.free ? <span className="badge badge-done">Free</span> : null}
-                  {provider.configured ? <span className="badge badge-working">Connected</span> : null}
+                  {provider.configured && !provider.platform ? (
+                    <span className="badge badge-working">Connected</span>
+                  ) : null}
                 </div>
                 <p className="tiny muted mt-8">{provider.free_note}</p>
               </div>
@@ -125,7 +128,13 @@ export function ModelsPanel({ onConfigured }: { onConfigured?: (provider: Provid
               ))}
             </div>
 
-            {provider.configured && editing !== provider.key ? (
+            {provider.platform ? (
+              <p className="tiny muted mt-16">
+                Included with Crew. No key needed, and usage is tracked against your AI budget.
+              </p>
+            ) : null}
+
+            {provider.configured && !provider.platform && editing !== provider.key ? (
               <div className="row-between mt-16" style={{ gap: 8 }}>
                 <span className="tiny muted">Key ending {provider.last4}</span>
                 <div style={{ display: "flex", gap: 6 }}>
@@ -180,7 +189,7 @@ export function ModelsPanel({ onConfigured }: { onConfigured?: (provider: Provid
               </div>
             ) : null}
 
-            {!provider.configured && editing !== provider.key ? (
+            {!provider.configured && !provider.platform && editing !== provider.key ? (
               <div className="mt-16">
                 <Button
                   size="sm"

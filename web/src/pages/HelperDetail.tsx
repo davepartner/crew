@@ -29,6 +29,10 @@ export function HelperDetail({ id }: { id: string }) {
   const [draftSkills, setDraftSkills] = useState<string[]>([]);
   const [skillQuery, setSkillQuery] = useState("");
   const [skillBusy, setSkillBusy] = useState(false);
+  const [budget, setBudget] = useState("0");
+  const [spend, setSpend] = useState(0);
+  const [budgetBusy, setBudgetBusy] = useState(false);
+  const [canDelegate, setCanDelegate] = useState(true);
 
   const load = useCallback(() => {
     api
@@ -39,6 +43,9 @@ export function HelperDetail({ id }: { id: string }) {
         setInstructions(result.agent.instructions);
         setModelProvider(result.agent.model_provider ?? "");
         setModelName(result.agent.model_name ?? "");
+        setBudget(String(result.agent.monthly_budget_usd ?? 0));
+        setCanDelegate(result.agent.can_delegate ?? true);
+        setSpend(result.spend_usd ?? 0);
         setTasks(result.tasks ?? []);
         setError(null);
       })
@@ -316,7 +323,7 @@ export function HelperDetail({ id }: { id: string }) {
                     {providers.map((provider) => (
                       <option key={provider.key} value={provider.key}>
                         {provider.name}
-                        {provider.free ? " (free)" : ""}
+                        {provider.platform ? " (included)" : provider.free ? " (free)" : ""}
                       </option>
                     ))}
                   </Select>
@@ -357,6 +364,69 @@ export function HelperDetail({ id }: { id: string }) {
                 </Button>
               </>
             )}
+          </section>
+
+          <section className="card">
+            <h2 className="section-title mb-8">AI budget</h2>
+            <p className="small muted mb-16">
+              A monthly cap for this helper's model calls. 0 means no limit. Estimates use public list prices.
+            </p>
+            <p className="small mb-16">
+              Spent this month: <strong>${spend.toFixed(2)}</strong>
+              {agent.monthly_budget_usd > 0 ? ` of $${agent.monthly_budget_usd.toFixed(2)}` : ""}
+            </p>
+            <label className="checkbox-row mb-16">
+              <input
+                type="checkbox"
+                checked={canDelegate}
+                onChange={async (event) => {
+                  const next = event.target.checked;
+                  setCanDelegate(next);
+                  try {
+                    const result = await api.updateAgent(id, { canDelegate: next });
+                    setAgent(result.agent);
+                  } catch (err) {
+                    setCanDelegate(!next);
+                    push(err instanceof ApiError ? err.message : "We couldn't change that.", "error");
+                  }
+                }}
+              />
+              <span>Allow {agent.name} to hand work to another helper</span>
+            </label>
+
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <Field label="Monthly budget (USD)" htmlFor="agent-budget">
+                  <Input
+                    id="agent-budget"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    value={budget}
+                    onChange={(event) => setBudget(event.target.value)}
+                  />
+                </Field>
+              </div>
+              <Button
+                onClick={async () => {
+                  setBudgetBusy(true);
+                  try {
+                    const result = await api.updateAgent(id, {
+                      monthlyBudgetUsd: Math.max(0, Number(budget) || 0),
+                    });
+                    setAgent(result.agent);
+                    push("Budget saved.");
+                  } catch (err) {
+                    push(err instanceof ApiError ? err.message : "We couldn't save that budget.", "error");
+                  } finally {
+                    setBudgetBusy(false);
+                  }
+                }}
+                loading={budgetBusy}
+              >
+                Save budget
+              </Button>
+            </div>
           </section>
 
           <section className="card">

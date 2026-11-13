@@ -187,11 +187,14 @@ func (s *Server) handleGetAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	spend, _ := s.store.AgentSpend(r.Context(), company.ID, agent.ID, store.MonthStart())
+
 	writeJSON(w, http.StatusOK, map[string]any{
-		"ok":     true,
-		"agent":  agent,
-		"tasks":  tasks,
-		"status": agentStatus(agent, countWorking(tasks)),
+		"ok":        true,
+		"agent":     agent,
+		"tasks":     tasks,
+		"status":    agentStatus(agent, countWorking(tasks)),
+		"spend_usd": spend,
 	})
 }
 
@@ -206,13 +209,15 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var body struct {
-		Name          *string   `json:"name"`
-		Role          *string   `json:"role"`
-		Emoji         *string   `json:"emoji"`
-		Instructions  *string   `json:"instructions"`
-		ModelProvider *string   `json:"modelProvider"`
-		ModelName     *string   `json:"modelName"`
-		Skills        *[]string `json:"skills"`
+		Name             *string   `json:"name"`
+		Role             *string   `json:"role"`
+		Emoji            *string   `json:"emoji"`
+		Instructions     *string   `json:"instructions"`
+		ModelProvider    *string   `json:"modelProvider"`
+		ModelName        *string   `json:"modelName"`
+		Skills           *[]string `json:"skills"`
+		MonthlyBudgetUSD *float64  `json:"monthlyBudgetUsd"`
+		CanDelegate      *bool     `json:"canDelegate"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -266,7 +271,20 @@ func (s *Server) handleUpdateAgent(w http.ResponseWriter, r *http.Request) {
 		skillKeys = *body.Skills
 	}
 
-	agent, err := s.store.UpdateAgent(r.Context(), company.ID, agentID, name, role, emoji, instructions, provider, model, skillKeys)
+	budget := current.MonthlyBudgetUSD
+	if body.MonthlyBudgetUSD != nil {
+		budget = *body.MonthlyBudgetUSD
+		if budget < 0 {
+			budget = 0
+		}
+	}
+
+	canDelegate := current.CanDelegate
+	if body.CanDelegate != nil {
+		canDelegate = *body.CanDelegate
+	}
+
+	agent, err := s.store.UpdateAgent(r.Context(), company.ID, agentID, name, role, emoji, instructions, provider, model, skillKeys, budget, canDelegate)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "We couldn't save that. Please try again.")
 		return

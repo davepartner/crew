@@ -8,6 +8,9 @@ export type Company = {
   audience: string;
   tone: string;
   monthly_task_limit: number;
+  monthly_budget_usd: number;
+  spend_usd: number;
+  role: "owner" | "editor" | "viewer";
   created_at: string;
   agent_count: number;
   task_count: number;
@@ -83,6 +86,26 @@ export type MarketingReport = {
   task?: Task;
 };
 
+export type Member = {
+  user_id: string;
+  name: string;
+  email: string;
+  role: "owner" | "editor" | "viewer";
+  is_owner: boolean;
+};
+
+export type Invite = { id: string; email: string; role: string; created_at: string };
+
+export type Notification = {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  task_id: string;
+  read_at: string | null;
+  created_at: string;
+};
+
 export type Provider = {
   key: string;
   name: string;
@@ -95,6 +118,7 @@ export type Provider = {
   default_model: string;
   models: string[];
   configured: boolean;
+  platform?: boolean;
   last4: string;
 };
 
@@ -114,6 +138,8 @@ export type Agent = {
   emoji: string;
   instructions: string;
   skills: string[];
+  monthly_budget_usd: number;
+  can_delegate: boolean;
   model_provider: string;
   model_name: string;
   status: AgentStatus;
@@ -326,6 +352,13 @@ export const api = {
   deleteCompany: (id: string) =>
     request<{ ok: boolean }>(`/api/companies/${id}`, { method: "DELETE" }),
 
+  members: () =>
+    request<{ ok: boolean; members: Member[]; invites: Invite[]; role: string }>("/api/members"),
+  addMember: (email: string, role: string) =>
+    request<{ ok: boolean }>("/api/members", { method: "POST", body: JSON.stringify({ email, role }) }),
+  removeMember: (id: string) => request<{ ok: boolean }>(`/api/members/${id}`, { method: "DELETE" }),
+  deleteInvite: (id: string) => request<{ ok: boolean }>(`/api/invites/${id}`, { method: "DELETE" }),
+
   skills: () =>
     request<{ ok: boolean; skills: Skill[]; categories: string[]; count: number; playbooks: Playbook[]; sources: { name: string; url: string; license: string }[] }>(
       "/api/skills",
@@ -378,6 +411,13 @@ export const api = {
   testProvider: (key: string) =>
     request<{ ok: boolean; message: string }>(`/api/providers/${key}/test`, { method: "POST" }),
 
+  notifications: () =>
+    request<{ ok: boolean; notifications: Notification[]; unread: number }>("/api/notifications"),
+  readNotification: (id: string) =>
+    request<{ ok: boolean }>(`/api/notifications/${id}/read`, { method: "POST" }),
+  readAllNotifications: () =>
+    request<{ ok: boolean }>("/api/notifications/read-all", { method: "POST" }),
+
   dashboard: () => request<Dashboard>("/api/dashboard"),
   activity: () => request<{ ok: boolean; activity: ActivityItem[] }>("/api/activity"),
 
@@ -388,8 +428,8 @@ export const api = {
       body: JSON.stringify(input),
     }),
   agent: (id: string) =>
-    request<{ ok: boolean; agent: Agent; tasks: Task[]; status: AgentStatus }>(`/api/agents/${id}`),
-  updateAgent: (id: string, input: Partial<Pick<Agent, "name" | "role" | "emoji" | "instructions" | "skills" | "model_provider" | "model_name">> & { modelProvider?: string; modelName?: string }) =>
+    request<{ ok: boolean; agent: Agent; tasks: Task[]; status: AgentStatus; spend_usd: number }>(`/api/agents/${id}`),
+  updateAgent: (id: string, input: Partial<Pick<Agent, "name" | "role" | "emoji" | "instructions" | "skills" | "model_provider" | "model_name" | "monthly_budget_usd" | "can_delegate">> & { modelProvider?: string; modelName?: string; monthlyBudgetUsd?: number; canDelegate?: boolean }) =>
     request<{ ok: boolean; agent: Agent }>(`/api/agents/${id}`, {
       method: "PATCH",
       body: JSON.stringify(input),

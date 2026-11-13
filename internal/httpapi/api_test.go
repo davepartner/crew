@@ -785,13 +785,17 @@ func TestProviderKeyUnlocksTheHelperModel(t *testing.T) {
 		Configured bool   `json:"configured"`
 		Provider   string `json:"provider"`
 		Model      string `json:"model"`
+		Mode       string `json:"mode"`
 		APIKey     string `json:"api_key"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&model); err != nil {
 		t.Fatalf("decode model: %v", err)
 	}
-	if !model.Configured || model.Provider != "openai" || model.Model != "gpt-4o-mini" || model.APIKey != apiKey {
+	if !model.Configured || model.Provider != "openai" || model.Model != "gpt-4o-mini" || model.Mode != "proxy" {
 		t.Fatalf("helper did not receive the model config: %+v", model)
+	}
+	if model.APIKey != "" {
+		t.Fatal("the provider key must never be sent to a helper")
 	}
 
 	if status, _ := b.do(t, http.MethodDelete, "/api/providers/openai", nil, nil); status != 200 {
@@ -973,5 +977,173 @@ func TestGoalsProgressAndCompletion(t *testing.T) {
 
 	if status, _ := b.do(t, http.MethodDelete, "/api/goals/"+goalID, nil, nil); status != 200 {
 		t.Fatalf("delete goal: %d", status)
+	}
+}
+
+func TestRunnerDelegatesToAnotherHelper(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var first struct {
+		Agent  map[string]any `json:"agent"`
+		APIKey string         `json:"apiKey"`
+	}
+	b.do(t, http.MethodPost, "/api/agents", map[string]string{"name": "Ada", "role": "Operations"}, &first)
+	adaID, _ := first.Agent["id"].(string)
+
+	var second struct {
+		Agent map[string]any `json:"agent"`
+	}
+	b.do(t, http.MethodPost, "/api/agents", map[string]string{"name": "Bob", "role": "Support"}, &second)
+	bobID, _ := second.Agent["id"].(string)
+
+	b.do(t, http.MethodPost, "/api/tasks", map[string]any{"title": "Look into refunds", "agentId": adaID}, nil)
+
+	claim, _ := http.NewRequest(http.MethodPost, h.base+"/api/runner/claim", nil)
+	claim.Header.Set("Authorization", "Bearer "+first.APIKey)
+	resp, err := http.DefaultClient.Do(claim)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var claimed struct {
+		Instructions string `json:"instructions"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&claimed)
+	if !strings.Contains(claimed.Instructions, "delegate_task") {
+		t.Fatalf("delegation missing from briefing: %.200s", claimed.Instructions)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"agent": "Bob", "title": "Reply to the refund thread", "details": "Use the refund policy.",
+	})
+	delegate, _ := http.NewRequest(http.MethodPost, h.base+"/api/runner/delegate", bytes.NewReader(body))
+	delegate.Header.Set("Authorization", "Bearer "+first.APIKey)
+	delegate.Header.Set("Content-Type", "application/json")
+	delegated, err := http.DefaultClient.Do(delegate)
+	if err != nil {
+		t.Fatalf("delegate: %v", err)
+	}
+	defer delegated.Body.Close()
+	if delegated.StatusCode != 201 {
+		t.Fatalf("delegate status: %d", delegated.StatusCode)
+	}
+
+	var tasks struct {
+		Tasks []map[string]any `json:"tasks"`
+	}
+	b.do(t, http.MethodGet, "/api/tasks", nil, &tasks)
+	found := false
+	for _, task := range tasks.Tasks {
+		if task["title"] == "Reply to the refund thread" && task["agent_id"] == bobID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("delegated task not assigned to Bob: %v", tasks.Tasks)
+	}
+}
+
+func TestTeamInviteGivesScopedAccess(t *testing.T) {
+	h := newHarness(t)
+	owner := h.newBrowser(t)
+	owner.login(t, "jane@example.com")
+
+	var created struct {
+		Company map[string]any `json:"company"`
+	}
+	owner.do(t, http.MethodPost, "/api/companies", map[string]any{
+		"name": "Shared Co", "businessKey": "custom", "createTeam": false,
+	}, &created)
+	sharedID, _ := created.Company["id"].(string)
+	owner.company = sharedID
+
+	status, raw := owner.do(t, http.MethodPost, "/api/members", map[string]string{
+		"email": "bob@example.com", "role": "viewer",
+	}, nil)
+	if status != 201 {
+		t.Fatalf("invite: %d %s", status, raw)
+	}
+
+	member := h.newBrowser(t)
+	member.login(t, "bob@example.com")
+
+	var companies struct {
+		Companies []map[string]any `json:"companies"`
+	}
+	member.do(t, http.MethodGet, "/api/companies", nil, &companies)
+	found := false
+	for _, company := range companies.Companies {
+		if company["id"] == sharedID {
+			found = true
+			if company["role"] != "viewer" {
+				t.Fatalf("role: %v", company["role"])
+			}
+		}
+	}
+	if !found {
+		t.Fatalf("shared company missing: %v", companies.Companies)
+	}
+
+	member.company = sharedID
+	if status, _ := member.do(t, http.MethodGet, "/api/tasks", nil, nil); status != 200 {
+		t.Fatalf("viewer read: %d", status)
+	}
+	status, raw = member.do(t, http.MethodPost, "/api/tasks", map[string]string{"title": "Nope"}, nil)
+	if status != 403 {
+		t.Fatalf("viewer write should be 403, got %d %s", status, raw)
+	}
+}
+
+func TestReviewCreatesANotification(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var agent struct {
+		Agent  map[string]any `json:"agent"`
+		APIKey string         `json:"apiKey"`
+	}
+	b.do(t, http.MethodPost, "/api/agents", map[string]string{"name": "Ada", "role": "Operations"}, &agent)
+	agentID, _ := agent.Agent["id"].(string)
+
+	var task struct {
+		Task map[string]any `json:"task"`
+	}
+	b.do(t, http.MethodPost, "/api/tasks", map[string]any{"title": "Needs a look", "agentId": agentID}, &task)
+
+	claim, _ := http.NewRequest(http.MethodPost, h.base+"/api/runner/claim", nil)
+	claim.Header.Set("Authorization", "Bearer "+agent.APIKey)
+	resp, err := http.DefaultClient.Do(claim)
+	if err != nil {
+		t.Fatalf("claim: %v", err)
+	}
+	defer resp.Body.Close()
+
+	var claimed struct {
+		Task map[string]any `json:"task"`
+	}
+	_ = json.NewDecoder(resp.Body).Decode(&claimed)
+	taskID, _ := claimed.Task["id"].(string)
+
+	complete, _ := http.NewRequest(http.MethodPost, h.base+"/api/runner/tasks/"+taskID+"/complete",
+		strings.NewReader(`{"summary":"All done","needsReview":true}`))
+	complete.Header.Set("Authorization", "Bearer "+agent.APIKey)
+	complete.Header.Set("Content-Type", "application/json")
+	done, err := http.DefaultClient.Do(complete)
+	if err != nil {
+		t.Fatalf("complete: %v", err)
+	}
+	defer done.Body.Close()
+
+	var notifications struct {
+		Unread int              `json:"unread"`
+		Items  []map[string]any `json:"notifications"`
+	}
+	status, raw := b.do(t, http.MethodGet, "/api/notifications", nil, &notifications)
+	if status != 200 || notifications.Unread != 1 || len(notifications.Items) != 1 {
+		t.Fatalf("notifications: %d %s %+v", status, raw, notifications)
 	}
 }

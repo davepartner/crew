@@ -30,6 +30,11 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 | Skills | 53 marketing skills (MIT) from Corey Haines' marketingskills, attached per helper |
 | Routines | Daily, weekday, weekly or monthly recurring tasks |
 | Goals | Numeric goals with progress, due dates and completion |
+| Included model | DeepSeek by default, proxied server-side so helpers never see the key |
+| Budgets | Monthly AI spend caps per helper and per company, with estimates |
+| Team | Invite editors and viewers by email; owner keeps control |
+| Notifications | In-app bell for reviews and marketing teardowns |
+| Delegation | Helpers can hand work to another helper with a tool call |
 | Teardowns | Reverse Engineer Marketing harness (MIT) with 10 channel playbooks |
 | Frontend | React 19 + TypeScript + Vite (no UI framework) |
 | Sign-in | Passwordless email OTP via PayTrackify (`htdocs/email-finance`) |
@@ -180,6 +185,10 @@ credential.
 | `CREW_SECURE_COOKIES` | `false` | Set `true` (or `CREW_ENV=production`) behind HTTPS. |
 | `CREW_ENV` | `development` | `production` forces secure cookies. |
 | `CREW_SECRET_KEY` | generated file | 32-byte hex/base64 key for provider-key encryption. Set this in production. |
+| `CREW_PLATFORM_PROVIDER` | `deepseek` | Provider used when a helper has no personal model. |
+| `CREW_PLATFORM_MODEL` | `deepseek-chat` | Model used for the included provider. |
+| `CREW_PLATFORM_API_KEY` | empty | Server-side key for the included model. Never sent to helpers. |
+| `CREW_PLATFORM_BASE_URL` | provider URL | Override for a self-hosted OpenAI-compatible endpoint. |
 | `CREW_WEB_DIR` | embedded | Serve a different UI folder (useful for previews). |
 
 PayTrackify side (`email-finance/.env`):
@@ -284,6 +293,10 @@ row-level security (see `ARCHITECTURE.md`).
 | `POST` | `/api/marketing/analyze` | session | Fetch a site, run a teardown, save the report |
 | `PUT/DELETE` | `/api/providers/{key}` | session | Save / remove an encrypted key |
 | `POST` | `/api/providers/{key}/test` | session | Live key check |
+| `GET/POST` | `/api/members` | session | Team list / invite by email |
+| `DELETE` | `/api/members/{id}` | session | Remove a teammate |
+| `GET` | `/api/notifications` | session | Bell list and unread count |
+| `POST` | `/api/notifications/read-all` | session | Clear the badge |
 | `GET/POST` | `/api/routines` | session | List / schedule recurring tasks |
 | `PATCH/DELETE` | `/api/routines/{id}` | session | Pause, edit or delete a routine |
 | `GET/POST` | `/api/goals` | session | List / add company goals |
@@ -341,14 +354,13 @@ Crew runs work. It does not yet run an organisation. The gap, in order of value:
 |---|---|
 | Shared workspace with roles | More than one human; assistants and reviewers |
 | Delegation between helpers | A helper can hand work to another helper |
-| Cost budgets (tokens and spend) | Autonomy with a real brake, not just a task cap |
+| Richer cost controls (hard caps mid-call) | The current cap checks before each call |
 | Integrations (GitHub, Slack, email) | Work arrives and leaves where people already are |
 | Notifications | You learn about a review without opening the tab |
 | Mobile app | The same API, in your pocket |
 
-Routines, goals and a monthly task budget are in. Memberships, cost budgets and delegation are
-tables and endpoints next to the existing ones; the runner protocol already has what a
-scheduler needs.
+Routines, goals, spend budgets, teams, notifications and delegation are in. The next layer is
+richer cost control and deeper integrations, not a rewrite.
 
 ## What Crew deliberately does not do (yet)
 

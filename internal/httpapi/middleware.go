@@ -152,6 +152,26 @@ func (s *Server) requireCompany(next http.HandlerFunc) http.HandlerFunc {
 	}
 }
 
+func (s *Server) requireRole(min string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		company := companyFrom(r)
+		if company == nil {
+			writeError(w, http.StatusConflict, "Create a company first.")
+			return
+		}
+
+		allowed := company.Role == "owner" ||
+			(min == "editor" && company.Role == "editor")
+
+		if !allowed {
+			writeError(w, http.StatusForbidden, "You have view-only access to this company.")
+			return
+		}
+
+		next(w, r)
+	}
+}
+
 func (s *Server) requireUser(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if identityFrom(r) == nil {

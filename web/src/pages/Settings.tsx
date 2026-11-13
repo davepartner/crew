@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { api, ApiError, type Company, type Provider, type Session, type User } from "../api";
+import { api, ApiError, type Company, type Invite, type Member, type Provider, type Session, type User } from "../api";
 import { ModelsPanel } from "../components/ModelsPanel";
 import { relativeTime, shortDate } from "../time";
 import { Button, Field, Input, Modal, Select, Tabs, Textarea, useToast } from "../ui";
@@ -45,6 +45,12 @@ export function Settings({
   const [audience, setAudience] = useState(company.audience);
   const [tone, setTone] = useState(company.tone || "Friendly");
   const [monthlyLimit, setMonthlyLimit] = useState(String(company.monthly_task_limit ?? 0));
+  const [monthlyBudget, setMonthlyBudget] = useState(String(company.monthly_budget_usd ?? 0));
+  const [members, setMembers] = useState<Member[]>([]);
+  const [invites, setInvites] = useState<Invite[]>([]);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState("editor");
+  const [teamBusy, setTeamBusy] = useState(false);
 
   useEffect(() => {
     setCompanyName(company.name);
@@ -54,7 +60,21 @@ export function Settings({
     setAudience(company.audience);
     setTone(company.tone || "Friendly");
     setMonthlyLimit(String(company.monthly_task_limit ?? 0));
+    setMonthlyBudget(String(company.monthly_budget_usd ?? 0));
   }, [company]);
+
+  useEffect(() => {
+    api
+      .members()
+      .then((result) => {
+        setMembers(result.members);
+        setInvites(result.invites ?? []);
+      })
+      .catch(() => {
+        setMembers([]);
+        setInvites([]);
+      });
+  }, [company.id]);
 
   useEffect(() => {
     if (tab !== "you" || sessions !== null) return;
@@ -86,6 +106,7 @@ export function Settings({
         audience: audience.trim(),
         tone,
         monthlyTaskLimit: Math.max(0, Number(monthlyLimit) || 0),
+        monthlyBudgetUsd: Math.max(0, Number(monthlyBudget) || 0),
       });
       onCompany(result.company);
       push("Company saved.");
@@ -245,10 +266,154 @@ export function Settings({
               />
             </Field>
 
+            <Field
+              label="Monthly AI budget (USD)"
+              hint={`Estimated model spend this month: $${(company.spend_usd ?? 0).toFixed(2)}. 0 means no limit.`}
+              htmlFor="settings-company-budget"
+            >
+              <Input
+                id="settings-company-budget"
+                type="number"
+                min={0}
+                step="0.01"
+                value={monthlyBudget}
+                onChange={(event) => setMonthlyBudget(event.target.value)}
+              />
+            </Field>
+
             <Button type="submit" variant="primary" loading={busy}>
               Save company
             </Button>
           </form>
+
+          <hr className="divider" style={{ margin: "24px 0" }} />
+
+          <h2 className="section-title mb-8">Team</h2>
+          <p className="small muted mb-16">
+            People you invite can see this company. Editors can change work; viewers can only read.
+            {company.role !== "owner" ? " Only the owner can add or remove people." : ""}
+          </p>
+
+          <div className="list">
+            {members.map((member) => (
+              <div className="row" key={member.user_id} style={{ cursor: "default" }}>
+                <span className="avatar" aria-hidden="true">
+                  {member.name.slice(0, 1).toUpperCase()}
+                </span>
+                <span className="row-main">
+                  <span className="row-title">
+                    {member.name}
+                    {member.user_id === user.id ? " (you)" : ""}
+                  </span>
+                  <span className="row-meta">{member.email}</span>
+                </span>
+                <span className={`badge ${member.is_owner ? "badge-done" : "badge-working"}`}>
+                  {member.is_owner ? "Owner" : member.role === "viewer" ? "Viewer" : "Editor"}
+                </span>
+                {company.role === "owner" && !member.is_owner ? (
+                  <Button
+                    size="sm"
+                    variant="quiet"
+                    disabled={teamBusy}
+                    onClick={async () => {
+                      setTeamBusy(true);
+                      try {
+                        await api.removeMember(member.user_id);
+                        setMembers((current) => current.filter((item) => item.user_id !== member.user_id));
+                      } catch (err) {
+                        push(err instanceof ApiError ? err.message : "We couldn't remove them.", "error");
+                      } finally {
+                        setTeamBusy(false);
+                      }
+                    }}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+
+            {invites.map((invite) => (
+              <div className="row" key={invite.id} style={{ cursor: "default" }}>
+                <span className="avatar" aria-hidden="true">
+                  ✉
+                </span>
+                <span className="row-main">
+                  <span className="row-title">{invite.email}</span>
+                  <span className="row-meta">Invitation waiting for their next sign-in</span>
+                </span>
+                <span className="badge badge-todo">{invite.role === "viewer" ? "Viewer" : "Editor"}</span>
+                {company.role === "owner" ? (
+                  <Button
+                    size="sm"
+                    variant="quiet"
+                    disabled={teamBusy}
+                    onClick={async () => {
+                      setTeamBusy(true);
+                      try {
+                        await api.deleteInvite(invite.id);
+                        setInvites((current) => current.filter((item) => item.id !== invite.id));
+                      } catch (err) {
+                        push(err instanceof ApiError ? err.message : "We couldn't remove that invite.", "error");
+                      } finally {
+                        setTeamBusy(false);
+                      }
+                    }}
+                  >
+                    Remove
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          {company.role === "owner" ? (
+            <form
+              className="mt-16"
+              onSubmit={async (event) => {
+                event.preventDefault();
+                if (inviteEmail.trim() === "") return;
+                setTeamBusy(true);
+                try {
+                  await api.addMember(inviteEmail.trim(), inviteRole);
+                  push("Invitation saved.");
+                  setInviteEmail("");
+                  const result = await api.members();
+                  setMembers(result.members);
+                  setInvites(result.invites ?? []);
+                } catch (err) {
+                  push(err instanceof ApiError ? err.message : "We couldn't add them.", "error");
+                } finally {
+                  setTeamBusy(false);
+                }
+              }}
+            >
+              <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+                <div style={{ flex: "1 1 220px" }}>
+                  <Field label="Their email" htmlFor="team-email">
+                    <Input
+                      id="team-email"
+                      type="email"
+                      placeholder="teammate@company.com"
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                    />
+                  </Field>
+                </div>
+                <div style={{ flex: "0 0 140px" }}>
+                  <Field label="Access" htmlFor="team-role">
+                    <Select id="team-role" value={inviteRole} onChange={(event) => setInviteRole(event.target.value)}>
+                      <option value="editor">Editor</option>
+                      <option value="viewer">Viewer</option>
+                    </Select>
+                  </Field>
+                </div>
+                <Button type="submit" loading={teamBusy}>
+                  Invite
+                </Button>
+              </div>
+            </form>
+          ) : null}
         </section>
       ) : null}
 

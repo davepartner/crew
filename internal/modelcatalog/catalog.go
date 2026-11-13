@@ -128,3 +128,43 @@ func Public() []Provider {
 	copy(out, providers)
 	return out
 }
+
+// Price is US dollars per one million tokens. It is an estimate for budgets,
+// not an invoice; providers change prices and some plans are free.
+type Price struct {
+	Input  float64 `json:"input"`
+	Output float64 `json:"output"`
+}
+
+var prices = map[string]Price{
+	"deepseek/deepseek-chat":                           {0.27, 1.10},
+	"deepseek/deepseek-reasoner":                       {0.55, 2.19},
+	"openai/gpt-4o-mini":                               {0.15, 0.60},
+	"openai/gpt-4.1-mini":                              {0.40, 1.60},
+	"openai/o4-mini":                                   {1.10, 4.40},
+	"anthropic/claude-sonnet-4-5":                      {3.00, 15.00},
+	"anthropic/claude-haiku-4-5":                       {1.00, 5.00},
+	"google/gemini-2.5-flash":                          {0.30, 2.50},
+	"google/gemini-2.5-pro":                            {1.25, 10.00},
+	"google/gemini-2.0-flash":                          {0.10, 0.40},
+	"mistral/mistral-small-latest":                     {0.10, 0.30},
+	"xai/grok-3-mini":                                  {0.30, 0.50},
+	"together/meta-llama/Llama-3.3-70B-Instruct-Turbo": {0.88, 0.88},
+}
+
+func PriceFor(providerKey, model string) Price {
+	if price, ok := prices[providerKey+"/"+model]; ok {
+		return price
+	}
+	switch providerKey {
+	case "openrouter", "groq", "cerebras", "ollama":
+		return Price{}
+	default:
+		return Price{Input: 0.50, Output: 2.00}
+	}
+}
+
+func EstimateCost(providerKey, model string, promptTokens, completionTokens int) float64 {
+	price := PriceFor(providerKey, model)
+	return (float64(promptTokens)*price.Input + float64(completionTokens)*price.Output) / 1_000_000
+}

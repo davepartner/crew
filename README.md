@@ -53,7 +53,10 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 |---|---|
 | ![Sign in](docs/screenshots/login.png) | ![Home](docs/screenshots/home.png) |
 
-| Advise Me | Ads Studio |
+| Advise Me | Products |
+| ![Advise Me](docs/screenshots/advise-me-v2.png) | ![Products](docs/screenshots/products.png) |
+| Integrations | Financial model |
+| ![Integrations](docs/screenshots/integrations.png) | ![Financial model](docs/screenshots/financial-model.png) |
 | ![Advise Me](docs/screenshots/advise-me.png) | ![Ads Studio](docs/screenshots/ads-studio.png) |
 | ![Ads Studio](docs/screenshots/ads-studio.png) | ![Marketing](docs/screenshots/marketing.png) |
 |---|---|

@@ -30,6 +30,9 @@ This is the rebuilt core of the Paperclip idea, with three deliberate changes:
 | Skills | 53 marketing skills (MIT) from Corey Haines' marketingskills, attached per helper |
 | Ads Studio | Platform-native Meta, TikTok and YouTube concepts, scripts, hooks, test plans and compliance checks |
 | Advise Me | Country-aware company study, checklist, next actions, helper creation and a floating advisor |
+| Products | Every company can run multiple product workspaces, each with the full feature set |
+| Files & financials | Upload evidence; model margin, runway and break-even; audited vs management accounts |
+| Integrations | Email, WhatsApp, Meta/TikTok/Google Ads read-only, and Brave Search |
 | Routines | Daily, weekday, weekly or monthly recurring tasks |
 | Goals | Numeric goals with progress, due dates and completion |
 | Included model | DeepSeek by default, proxied server-side so helpers never see the key |
@@ -303,6 +306,13 @@ row-level security (see `ARCHITECTURE.md`).
 | `GET` | `/api/advice` | session | Company study, checklist and cached deep study |
 | `POST` | `/api/advice/study` | session | Generate or refresh the deep study |
 | `POST` | `/api/advice/chat` | session | Ask the advisor about the company |
+| `GET/POST` | `/api/files` | session | List or upload company files |
+| `GET/POST` | `/api/financials` | session | Financial snapshots and model |
+| `GET` | `/api/products` | session | Products under a company |
+| `POST` | `/api/products` | session | Create a product workspace |
+| `GET` | `/api/integrations` | session | Connected integrations |
+| `POST` | `/api/send/email` | session | Send a report by email |
+| `POST` | `/api/send/whatsapp` | session | Send a WhatsApp message |
 | `PUT/DELETE` | `/api/providers/{key}` | session | Save / remove an encrypted key |
 | `POST` | `/api/providers/{key}/test` | session | Live key check |
 | `GET/POST` | `/api/members` | session | Team list / invite by email |

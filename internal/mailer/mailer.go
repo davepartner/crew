@@ -1,6 +1,7 @@
 package mailer
 
 import (
+	"crypto/tls"
 	"fmt"
 	"net"
 	"net/smtp"
@@ -30,11 +31,43 @@ func Send(cfg Config, to, subject, body string) error {
 		return fmt.Errorf("email is not configured correctly")
 	}
 
-	var auth smtp.Auth
-	if cfg.User != "" {
-		auth = smtp.PlainAuth("", cfg.User, cfg.Pass, host)
+	client, err := smtp.Dial(cfg.Addr)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	if ok, _ := client.Extension("STARTTLS"); ok {
+		// A local mail server often presents a certificate for the machine
+		// hostname, not 127.0.0.1. Only relax verification for loopback.
+		config := &tls.Config{ServerName: host}
+		if host == "127.0.0.1" || host == "::1" || strings.EqualFold(host, "localhost") {
+			config.InsecureSkipVerify = true
+		}
+		if err := client.StartTLS(config); err != nil {
+			return err
+		}
 	}
 
+	if cfg.User != "" {
+		if ok, _ := client.Extension("AUTH"); ok {
+			if err := client.Auth(smtp.PlainAuth("", cfg.User, cfg.Pass, host)); err != nil {
+				return err
+			}
+		}
+	}
+
+	if err := client.Mail(envelope(from)); err != nil {
+		return err
+	}
+	if err := client.Rcpt(to); err != nil {
+		return err
+	}
+
+	writer, err := client.Data()
+	if err != nil {
+		return err
+	}
 	message := strings.Join([]string{
 		"From: " + from,
 		"To: " + to,
@@ -45,8 +78,14 @@ func Send(cfg Config, to, subject, body string) error {
 		"",
 		body,
 	}, "\r\n")
+	if _, err := writer.Write([]byte(message)); err != nil {
+		return err
+	}
+	if err := writer.Close(); err != nil {
+		return err
+	}
 
-	return smtp.SendMail(cfg.Addr, auth, envelope(from), []string{to}, []byte(message))
+	return client.Quit()
 }
 
 func envelope(from string) string {

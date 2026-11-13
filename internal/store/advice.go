@@ -38,3 +38,8 @@ func (s *Store) SaveCompanyAdvice(ctx context.Context, companyID string, analysi
 		companyID, string(analysis), model, Now())
 	return err
 }
+
+func (s *Store) DeleteCompanyAdvice(ctx context.Context, companyID string) error {
+	_, err := s.db.ExecContext(ctx, `DELETE FROM company_advice WHERE company_id = ?`, companyID)
+	return err
+}

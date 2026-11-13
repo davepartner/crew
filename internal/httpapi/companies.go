@@ -227,6 +227,7 @@ func (s *Server) handleUpdateCompany(w http.ResponseWriter, r *http.Request) {
 		country = trim(body.Country, 80)
 	}
 
+	_ = s.store.DeleteCompanyAdvice(r.Context(), current.ID)
 	company, err := s.store.UpdateCompany(r.Context(), id.UserID, current.ID, store.CompanyInput{
 		Name:             name,
 		BusinessKey:      current.BusinessKey,

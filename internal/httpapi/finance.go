@@ -64,6 +64,7 @@ func (s *Server) handleCreateFinancials(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	_ = s.store.DeleteCompanyAdvice(r.Context(), company.ID)
 	value := finance.Build(snapshot)
 	writeJSON(w, http.StatusCreated, map[string]any{"ok": true, "snapshot": snapshot, "model": value})
 }
@@ -80,6 +81,7 @@ func (s *Server) handleDeleteFinancials(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	_ = s.store.DeleteCompanyAdvice(r.Context(), company.ID)
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 

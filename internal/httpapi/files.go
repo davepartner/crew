@@ -89,6 +89,7 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	_ = s.store.DeleteCompanyAdvice(r.Context(), company.ID)
 	saved, err := s.store.CreateCompanyFile(r.Context(), id.UserID, company.ID, name, mime, path, text, int64(len(data)))
 	if err != nil {
 		_ = os.Remove(path)
@@ -113,6 +114,7 @@ func (s *Server) handleDeleteFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	_ = os.Remove(file.Path)
+	_ = s.store.DeleteCompanyAdvice(r.Context(), company.ID)
 
 	writeJSON(w, http.StatusOK, map[string]any{"ok": true})
 }

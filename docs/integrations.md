@@ -43,6 +43,11 @@ Marketing → Ads Studio → **Live ad accounts** is the control surface. Enabli
 campaign asks for confirmation because it can spend immediately. Tokens are
 encrypted at rest and never returned to the browser.
 
+New campaigns are created **paused**. Crew controls the campaign shell, status
+and (where the provider allows it) the campaign daily budget; ad sets, creatives
+and final delivery still need the provider's Ads Manager until those objects are
+added.
+
 ## Search
 
 - Crew ships with a built-in SearXNG endpoint at `CREW_SEARCH_URL` (default

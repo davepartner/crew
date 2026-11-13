@@ -17,7 +17,7 @@ func TestBuildProfitAndLoss(t *testing.T) {
 	if model.GrossMargin != 0.6 || model.BreakEvenSales != 500000 {
 		t.Fatalf("margin: %+v", model)
 	}
-	if model.RunwayMonths != 0 || model.Quality != "Audited" {
+	if model.RunwayMonths != 0 || model.Quality != "Audited (declared)" {
 		t.Fatalf("quality: %+v", model)
 	}
 }

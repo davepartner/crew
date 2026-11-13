@@ -43,7 +43,7 @@ func Build(snapshot store.FinancialSnapshot) Model {
 	if snapshot.AuditStatus == "verified" {
 		model.Quality = "Verified against statement"
 	} else if snapshot.Audited {
-		model.Quality = "Audited"
+		model.Quality = "Audited (declared)"
 	} else if snapshot.Source != "" {
 		model.Quality = "Management accounts"
 	} else {

@@ -67,6 +67,8 @@ tax or investment advice.
 **Company files** accepts up to 20 files (10 MB each). Text, CSV and JSON are
 read directly. PDFs are parsed with `pdftotext`, scanned PDFs are rendered and
 OCR'd, and images are OCR'd with Tesseract. Files can be downloaded or removed.
+The host needs `pdftotext`, `pdftoppm` and `tesseract` installed (on AlmaLinux:
+`dnf install -y poppler-utils tesseract`).
 
 **Financial model** accepts one month of revenue, cost of sales, operating
 costs, cash, receivables and payables. Crew computes gross profit and margin,

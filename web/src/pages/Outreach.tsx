@@ -530,7 +530,10 @@ function DiscoverModal({ open, onClose, onSaved }: { open: boolean; onClose: () 
       catch (err) { setError(err instanceof ApiError ? err.message : "Discovery failed."); }
       finally { setBusy(false); }
     }}>Discover</Button></>}>
-      <p className="small muted mb-16">Free OpenStreetMap discovery, like Sellbird’s default source. Coverage is best for businesses with a physical location.</p>
+      <p className="small muted mb-16">
+        Free discovery: OpenStreetMap first, then the built-in web search as a fallback. Coverage is best for
+        businesses with a physical location.
+      </p>
       <div className="form-grid">
         <Field label="Look for" htmlFor="od-query"><Input id="od-query" value={query} onChange={(e) => setQuery(e.target.value)} /></Field>
         <Field label="City or region" htmlFor="od-location"><Input id="od-location" value={location} onChange={(e) => setLocation(e.target.value)} /></Field>

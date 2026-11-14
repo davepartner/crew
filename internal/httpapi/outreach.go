@@ -15,6 +15,7 @@ import (
 
 	"github.com/davepartner/crew/internal/llm"
 	"github.com/davepartner/crew/internal/mailer"
+	"github.com/davepartner/crew/internal/research"
 	"github.com/davepartner/crew/internal/store"
 )
 
@@ -205,9 +206,9 @@ func (s *Server) handleOutreachDiscover(w http.ResponseWriter, r *http.Request) 
 
 	ctx, cancel := context.WithTimeout(r.Context(), 40*time.Second)
 	defer cancel()
-	results, err := discoverOSM(ctx, trim(body.Query, 120), trim(body.Location, 120), body.Limit)
+	results, err := discoverOSM(ctx, trim(body.Query, 120), trim(body.Location, 120), body.Limit, s.cfg.SearchURL)
 	if err != nil {
-		writeError(w, http.StatusBadGateway, "OpenStreetMap discovery failed: "+err.Error())
+		writeError(w, http.StatusBadGateway, "Discovery failed: "+err.Error())
 		return
 	}
 
@@ -733,13 +734,13 @@ func outreachSignals(text, document string) ([]store.OutreachSignal, int) {
 	return signals, score
 }
 
-func discoverOSM(ctx context.Context, query, location string, limit int) ([]store.OutreachProspect, error) {
+func discoverOSM(ctx context.Context, query, location string, limit int, searchURL string) ([]store.OutreachProspect, error) {
 	geocodeURL := "https://nominatim.openstreetmap.org/search?format=json&limit=1&q=" + url.QueryEscape(location)
 	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, geocodeURL, nil)
 	request.Header.Set("User-Agent", "CrewOutreach/1.0 (https://crew.paytrackify.com)")
 	response, err := (&http.Client{Timeout: 10 * time.Second}).Do(request)
 	if err != nil {
-		return nil, err
+		return webDiscovery(ctx, query, location, limit, searchURL)
 	}
 	defer response.Body.Close()
 	var places []struct {
@@ -747,7 +748,7 @@ func discoverOSM(ctx context.Context, query, location string, limit int) ([]stor
 		DisplayName string   `json:"display_name"`
 	}
 	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&places); err != nil || len(places) == 0 {
-		return nil, fmt.Errorf("location not found")
+		return webDiscovery(ctx, query, location, limit, searchURL)
 	}
 	box := places[0].BoundingBox
 	if len(box) < 4 {
@@ -761,7 +762,7 @@ func discoverOSM(ctx context.Context, query, location string, limit int) ([]stor
 	request.Header.Set("User-Agent", "CrewOutreach/1.0")
 	response, err = (&http.Client{Timeout: 30 * time.Second}).Do(request)
 	if err != nil {
-		return nil, err
+		return webDiscovery(ctx, query, location, limit, searchURL)
 	}
 	defer response.Body.Close()
 	var payload struct {
@@ -770,7 +771,7 @@ func discoverOSM(ctx context.Context, query, location string, limit int) ([]stor
 		} `json:"elements"`
 	}
 	if err := json.NewDecoder(io.LimitReader(response.Body, 2<<20)).Decode(&payload); err != nil {
-		return nil, err
+		return webDiscovery(ctx, query, location, limit, searchURL)
 	}
 
 	out := []store.OutreachProspect{}
@@ -784,6 +785,49 @@ func discoverOSM(ctx context.Context, query, location string, limit int) ([]stor
 			Name: name, Website: website, Domain: domainOf(website),
 			Industry: element.Tags["shop"], Location: element.Tags["addr:city"], Source: "OpenStreetMap",
 		})
+	}
+	if len(out) > 0 {
+		return out, nil
+	}
+	return webDiscovery(ctx, query, location, limit, searchURL)
+}
+
+func webDiscovery(ctx context.Context, query, location string, limit int, searchURL string) ([]store.OutreachProspect, error) {
+	results := research.Search(ctx, query+" in "+location, "", searchURL)
+	blocked := []string{"wikipedia.org", "facebook.com", "instagram.com", "linkedin.com", "yelp.", "tripadvisor.", "yellowpages.", "reddit.com", "youtube.com", "pinterest."}
+	out := []store.OutreachProspect{}
+	seen := map[string]bool{}
+	for _, result := range results {
+		if len(out) >= limit {
+			break
+		}
+		parsed, err := url.Parse(result.URL)
+		if err != nil || parsed.Hostname() == "" {
+			continue
+		}
+		domain := strings.ToLower(parsed.Hostname())
+		skip := false
+		for _, item := range blocked {
+			if strings.Contains(domain, item) {
+				skip = true
+				break
+			}
+		}
+		if skip || seen[domain] {
+			continue
+		}
+		seen[domain] = true
+		name := strings.TrimSpace(result.Title)
+		if name == "" {
+			name = domain
+		}
+		out = append(out, store.OutreachProspect{
+			Name: name, Website: "https://" + domain, Domain: domain,
+			Location: location, Source: "web search",
+		})
+	}
+	if len(out) == 0 {
+		return nil, fmt.Errorf("no businesses found; OpenStreetMap may be unavailable and web search returned no usable sites")
 	}
 	return out, nil
 }

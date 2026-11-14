@@ -68,3 +68,14 @@ Crew's Advise Me stage model and diagnostic structure are informed by Foreman.
 
 Crew's Advise Me framework selection and plain-language business analysis are
 informed by biz-lens.
+
+
+## OpenCTI
+
+- Source: https://github.com/OpenCTI-Platform/opencti
+- Copyright (c) Filigran
+- Apache License 2.0
+
+Crew's Cyber Security workspace is inspired by OpenCTI's STIX 2.1 data model,
+company-scoped assets, indicators, reports, relationships, confidence, TLP and
+graph concepts. No OpenCTI source code is copied.

@@ -102,6 +102,16 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/files/{id}/download", s.requireUser(s.requireCompany(s.handleDownloadFile)))
 	mux.HandleFunc("DELETE /api/files/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteFile))))
 
+	mux.HandleFunc("GET /api/security", s.requireUser(s.requireCompany(s.handleSecurity)))
+	mux.HandleFunc("POST /api/security/scan", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleSecurityScan))))
+	mux.HandleFunc("GET /api/security/stix", s.requireUser(s.requireCompany(s.handleSecurityStix)))
+	mux.HandleFunc("POST /api/security/assets", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleSecurityAsset))))
+	mux.HandleFunc("DELETE /api/security/assets/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteSecurityAsset))))
+	mux.HandleFunc("POST /api/security/indicators", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleSecurityIndicator))))
+	mux.HandleFunc("POST /api/security/indicators/{id}/status", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleSecurityIndicatorStatus))))
+	mux.HandleFunc("DELETE /api/security/indicators/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteSecurityIndicator))))
+	mux.HandleFunc("POST /api/security/reports", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleSecurityReport))))
+
 	mux.HandleFunc("GET /api/research/status", s.requireUser(s.requireCompany(s.handleResearchStatus)))
 
 	mux.HandleFunc("GET /api/adaccounts", s.requireUser(s.requireCompany(s.handleAdAccounts)))

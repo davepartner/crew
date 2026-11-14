@@ -234,6 +234,112 @@ export type PortfolioTotal = {
   cash: number;
 };
 
+export type CTIAsset = {
+  id: string;
+  type: string;
+  value: string;
+  label: string;
+  criticality: string;
+  source: string;
+  last_seen: string;
+  created_at: string;
+};
+
+export type CTIIndicator = {
+  id: string;
+  type: string;
+  value: string;
+  name: string;
+  description: string;
+  confidence: number;
+  tlp: string;
+  source: string;
+  source_url: string;
+  status: string;
+  tags: string[];
+  first_seen: string;
+  last_seen: string;
+  created_at: string;
+};
+
+export type CTIActor = {
+  id: string;
+  name: string;
+  aliases: string[];
+  motivation: string;
+  sophistication: string;
+  country: string;
+  description: string;
+  source: string;
+  confidence: number;
+  created_at: string;
+};
+
+export type CTIReport = {
+  id: string;
+  title: string;
+  summary: string;
+  source: string;
+  source_url: string;
+  published_at: string;
+  confidence: number;
+  tlp: string;
+  tags: string[];
+  created_at: string;
+};
+
+export type CTIFinding = {
+  id: string;
+  category: string;
+  severity: string;
+  title: string;
+  detail: string;
+  evidence: string;
+  fix: string;
+  created_at: string;
+};
+
+export type SecurityAssessment = {
+  analysis: {
+    threat_level?: string;
+    exposure_score?: number;
+    summary?: string;
+    risks?: { title: string; severity: string; why: string; fix: string }[];
+    actions?: string[];
+    business_impact?: string;
+  };
+  model: string;
+  created_at: string;
+};
+
+export type SecurityProvider = {
+  key: string;
+  name: string;
+  url: string;
+  docs: string;
+  configured: boolean;
+  free: boolean;
+};
+
+export type SecurityPayload = {
+  assets: CTIAsset[];
+  indicators: CTIIndicator[];
+  actors: CTIActor[];
+  reports: CTIReport[];
+  relationships: { id: string; source_type: string; source_id: string; target_type: string; target_id: string; relation: string; confidence: number; description: string }[];
+  findings: CTIFinding[];
+  assessment: SecurityAssessment | null;
+  providers: SecurityProvider[];
+  summary: {
+    severity: Record<string, number>;
+    active_indicators: number;
+    total_indicators: number;
+    assets: number;
+    findings: number;
+  };
+  scanned_at: string;
+};
+
 export type AdAccountCampaign = {
   id: string;
   name: string;
@@ -667,6 +773,28 @@ export const api = {
 
   researchStatus: () =>
     request<{ ok: boolean; searxng: boolean; brave: boolean; search_url: string }>("/api/research/status"),
+
+  security: () => request<{ ok: boolean; security: SecurityPayload; company: Company }>("/api/security"),
+  scanSecurity: () => request<{ ok: boolean; security: SecurityPayload }>("/api/security/scan", { method: "POST" }),
+  securityStix: async () => {
+    const headers = new Headers();
+    if (activeCompany) headers.set("X-Crew-Company", activeCompany);
+    const response = await fetch("/api/security/stix", { headers, credentials: "same-origin" });
+    if (!response.ok) throw new ApiError("We couldn't export the STIX bundle.", response.status);
+    return response.blob();
+  },
+  addSecurityAsset: (input: { type: string; value: string; label: string; criticality: string }) =>
+    request<{ ok: boolean; asset: CTIAsset }>("/api/security/assets", { method: "POST", body: JSON.stringify(input) }),
+  deleteSecurityAsset: (id: string) =>
+    request<{ ok: boolean }>(`/api/security/assets/${id}`, { method: "DELETE" }),
+  addSecurityIndicator: (input: { type: string; value: string; name: string; description: string; confidence: number; tlp: string; tags: string[] }) =>
+    request<{ ok: boolean; indicator: CTIIndicator }>("/api/security/indicators", { method: "POST", body: JSON.stringify(input) }),
+  setSecurityIndicatorStatus: (id: string, status: string) =>
+    request<{ ok: boolean }>(`/api/security/indicators/${id}/status`, { method: "POST", body: JSON.stringify({ status }) }),
+  deleteSecurityIndicator: (id: string) =>
+    request<{ ok: boolean }>(`/api/security/indicators/${id}`, { method: "DELETE" }),
+  addSecurityReport: (input: { title: string; summary: string; source: string; confidence: number; tlp: string }) =>
+    request<{ ok: boolean; report: CTIReport }>("/api/security/reports", { method: "POST", body: JSON.stringify(input) }),
 
   adAccounts: () => request<{ ok: boolean; accounts: AdAccount[] }>("/api/adaccounts"),
   createAdCampaign: (platform: string, name: string, budget: number) =>

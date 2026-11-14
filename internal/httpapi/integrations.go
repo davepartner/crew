@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var integrationKinds = []string{"whatsapp", "meta_ads", "tiktok_ads", "google_ads", "brave_search", "ocr_space", "exchange_rate"}
+var integrationKinds = []string{"whatsapp", "meta_ads", "tiktok_ads", "google_ads", "brave_search", "ocr_space", "exchange_rate", "virustotal", "abuseipdb", "otx", "shodan"}
 
 func integrationFields(kind string) []string {
 	switch kind {
@@ -23,7 +23,7 @@ func integrationFields(kind string) []string {
 		return []string{"advertiser_id", "access_token"}
 	case "google_ads":
 		return []string{"customer_id", "developer_token", "client_id", "client_secret", "refresh_token", "login_customer_id"}
-	case "brave_search", "ocr_space":
+	case "brave_search", "ocr_space", "virustotal", "abuseipdb", "otx", "shodan":
 		return []string{"api_key"}
 	case "exchange_rate":
 		return []string{"api_key", "base_currency"}

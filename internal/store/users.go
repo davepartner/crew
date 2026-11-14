@@ -95,6 +95,13 @@ func (s *Store) DeleteUserData(ctx context.Context, id string) error {
 			`DELETE FROM tasks WHERE user_id = ?`,
 			`DELETE FROM agents WHERE user_id = ?`,
 			`DELETE FROM provider_keys WHERE user_id = ?`,
+			`DELETE FROM cti_assets WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM cti_indicators WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM cti_actors WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM cti_reports WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM cti_relationships WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM cti_findings WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM cti_assessments WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
 			`DELETE FROM companies WHERE user_id = ?`,
 		} {
 			if _, err := tx.ExecContext(ctx, stmt, id); err != nil {

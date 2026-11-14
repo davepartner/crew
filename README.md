@@ -34,6 +34,7 @@ This is the rebuilt core of the Paperclip idea, with five deliberate changes:
 | Files & financials | Upload evidence; model margin, runway and break-even; audited vs management accounts |
 | Integrations | Email, WhatsApp templates, Meta/TikTok/Google Ads controls, SearXNG, Brave, OCR.space, ExchangeRate-API |
 | Portfolio | Consolidated revenue, net, cash and health across every product |
+| Cyber Security | Company assets, threat feeds, indicators, graph and STIX 2.1 export |
 | Search | Self-hosted SearXNG for arbitrary web results; Brave optional |
 | Routines | Daily, weekday, weekly or monthly recurring tasks |
 | Goals | Numeric goals with progress, due dates and completion |

@@ -189,7 +189,8 @@ func (s *Store) DeleteCompany(ctx context.Context, userID, id string) error {
 		if _, err := tx.ExecContext(ctx, `DELETE FROM ad_campaigns WHERE company_id = ?`, id); err != nil {
 			return err
 		}
-		for _, table := range []string{"company_files", "financial_snapshots", "company_integrations", "company_advice"} {
+		for _, table := range []string{"company_files", "financial_snapshots", "company_integrations", "company_advice",
+			"cti_assets", "cti_indicators", "cti_actors", "cti_reports", "cti_relationships", "cti_findings", "cti_assessments"} {
 			if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE company_id = ?", id); err != nil {
 				return err
 			}

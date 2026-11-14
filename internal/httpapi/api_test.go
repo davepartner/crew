@@ -1258,3 +1258,36 @@ func TestProductsAndFinancials(t *testing.T) {
 		t.Fatalf("portfolio: %d %s %+v", status, raw, portfolio)
 	}
 }
+
+func TestSecurityWorkspaceAndSTIX(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var workspace struct {
+		Security struct {
+			Assets  []map[string]any `json:"assets"`
+			Summary map[string]any   `json:"summary"`
+		} `json:"security"`
+	}
+	status, raw := b.do(t, http.MethodGet, "/api/security", nil, &workspace)
+	if status != 200 {
+		t.Fatalf("security: %d %s", status, raw)
+	}
+	if workspace.Security.Summary == nil {
+		t.Fatalf("summary missing: %s", raw)
+	}
+
+	status, raw = b.do(t, http.MethodPost, "/api/security/indicators", map[string]any{
+		"type": "domain", "value": "phish.example", "name": "Phishing host",
+		"confidence": 80, "tlp": "amber",
+	}, nil)
+	if status != 201 {
+		t.Fatalf("indicator: %d %s", status, raw)
+	}
+
+	status, raw = b.do(t, http.MethodGet, "/api/security/stix", nil, nil)
+	if status != 200 || !strings.Contains(raw, "bundle") {
+		t.Fatalf("stix: %d %s", status, raw)
+	}
+}

@@ -10,6 +10,7 @@ import { HelperDetail } from "./pages/HelperDetail";
 import { Marketing } from "./pages/Marketing";
 import { AdviseMe } from "./pages/AdviseMe";
 import { Portfolio } from "./pages/Portfolio";
+import { Security } from "./pages/Security";
 import { Routines } from "./pages/Routines";
 import { ActivityPage } from "./pages/Activity";
 import { Settings } from "./pages/Settings";
@@ -166,6 +167,7 @@ const navItems: NavItem[] = [
   { to: "/", label: "Home", icon: "⌂", match: (path) => path === "/" },
   { to: "/advise", label: "Advise Me", icon: "◎", match: (path) => path === "/advise" },
   { to: "/portfolio", label: "Portfolio", icon: "▦", match: (path) => path === "/portfolio" },
+  { to: "/security", label: "Cyber Security", icon: "⛨", match: (path) => path === "/security" },
   { to: "/tasks", label: "Tasks", icon: "☑", match: (path) => path.startsWith("/tasks") },
   { to: "/helpers", label: "Helpers", icon: "✦", match: (path) => path.startsWith("/helpers") },
   { to: "/marketing", label: "Marketing", icon: "◈", match: (path) => path === "/marketing" },
@@ -534,6 +536,7 @@ function Route({
   if (path === "/marketing") return <Marketing />;
   if (path === "/advise") return <AdviseMe />;
   if (path === "/portfolio") return <Portfolio />;
+  if (path === "/security") return <Security />;
   if (path === "/routines") return <Routines />;
   if (path === "/activity") return <ActivityPage />;
   if (path === "/settings")

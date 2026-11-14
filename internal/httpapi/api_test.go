@@ -1291,3 +1291,60 @@ func TestSecurityWorkspaceAndSTIX(t *testing.T) {
 		t.Fatalf("stix: %d %s", status, raw)
 	}
 }
+
+func TestOutreachPipeline(t *testing.T) {
+	h := newHarness(t)
+	b := h.newBrowser(t)
+	b.login(t, "jane@example.com")
+
+	var prospect struct {
+		Prospect struct {
+			ID string `json:"id"`
+		} `json:"prospect"`
+	}
+	status, raw := b.do(t, http.MethodPost, "/api/outreach/prospects", map[string]any{
+		"name": "Acme Roofing", "website": "https://acme.example", "email": "owner@acme.example",
+		"contact": "Ada Owner", "role": "Owner",
+	}, &prospect)
+	if status != 201 || prospect.Prospect.ID == "" {
+		t.Fatalf("prospect: %d %s", status, raw)
+	}
+
+	var campaign struct {
+		Campaign struct {
+			ID string `json:"id"`
+		} `json:"campaign"`
+	}
+	status, raw = b.do(t, http.MethodPost, "/api/outreach/campaigns", map[string]any{
+		"name": "Roofers", "offer": "We book estimates for roofers.", "audience": "roofing owners",
+		"tone": "Direct", "status": "active", "daily_limit": 20,
+		"steps": []map[string]any{{"position": 1, "delay_days": 0, "subject": "Quick question", "body": "Mention the signal."}},
+	}, &campaign)
+	if status != 201 {
+		t.Fatalf("campaign: %d %s", status, raw)
+	}
+
+	var draft struct {
+		Message struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+			Body   string `json:"body"`
+		} `json:"message"`
+	}
+	status, raw = b.do(t, http.MethodPost, "/api/outreach/draft", map[string]any{
+		"campaignId": campaign.Campaign.ID, "prospectId": prospect.Prospect.ID, "step": 1,
+	}, &draft)
+	if status != 201 || draft.Message.ID == "" || draft.Message.Body == "" {
+		t.Fatalf("draft: %d %s", status, raw)
+	}
+
+	status, raw = b.do(t, http.MethodPost, "/api/outreach/messages/"+draft.Message.ID+"/status", map[string]any{"status": "approved"}, nil)
+	if status != 200 {
+		t.Fatalf("approve: %d %s", status, raw)
+	}
+
+	status, raw = b.do(t, http.MethodGet, "/api/outreach/export", nil, nil)
+	if status != 200 || !strings.Contains(raw, "acme.example") {
+		t.Fatalf("export: %d %s", status, raw)
+	}
+}

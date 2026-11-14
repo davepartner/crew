@@ -24,6 +24,7 @@ type pageEvidence struct {
 	Title       string `json:"title"`
 	Description string `json:"description"`
 	Text        string `json:"-"`
+	HTML        string `json:"-"`
 	Characters  int    `json:"characters"`
 	Truncated   bool   `json:"truncated"`
 }
@@ -357,6 +358,7 @@ func fetchPage(ctx context.Context, rawURL string) (pageEvidence, error) {
 		Title:       title,
 		Description: description,
 		Text:        text,
+		HTML:        document,
 		Characters:  len(text),
 		Truncated:   truncated,
 	}, nil

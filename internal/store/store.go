@@ -184,6 +184,88 @@ func (s *Store) migrate(ctx context.Context) error {
 			created_at TEXT NOT NULL,
 			PRIMARY KEY (company_id, kind)
 		)`,
+		`CREATE TABLE IF NOT EXISTS outreach_prospects (
+			id TEXT PRIMARY KEY,
+			company_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			website TEXT NOT NULL DEFAULT '',
+			domain TEXT NOT NULL DEFAULT '',
+			industry TEXT NOT NULL DEFAULT '',
+			location TEXT NOT NULL DEFAULT '',
+			source TEXT NOT NULL DEFAULT 'manual',
+			stage TEXT NOT NULL DEFAULT 'new',
+			score INTEGER NOT NULL DEFAULT 0,
+			signals TEXT NOT NULL DEFAULT '[]',
+			notes TEXT NOT NULL DEFAULT '',
+			last_contacted TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS outreach_contacts (
+			id TEXT PRIMARY KEY,
+			company_id TEXT NOT NULL,
+			prospect_id TEXT NOT NULL,
+			name TEXT NOT NULL DEFAULT '',
+			role TEXT NOT NULL DEFAULT '',
+			email TEXT NOT NULL DEFAULT '',
+			email_status TEXT NOT NULL DEFAULT 'guess',
+			source TEXT NOT NULL DEFAULT '',
+			is_primary INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS outreach_campaigns (
+			id TEXT PRIMARY KEY,
+			company_id TEXT NOT NULL,
+			name TEXT NOT NULL,
+			offer TEXT NOT NULL DEFAULT '',
+			audience TEXT NOT NULL DEFAULT '',
+			tone TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'draft',
+			daily_limit INTEGER NOT NULL DEFAULT 20,
+			autopilot INTEGER NOT NULL DEFAULT 0,
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS outreach_steps (
+			id TEXT PRIMARY KEY,
+			company_id TEXT NOT NULL,
+			campaign_id TEXT NOT NULL,
+			position INTEGER NOT NULL,
+			delay_days INTEGER NOT NULL DEFAULT 0,
+			subject TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS outreach_messages (
+			id TEXT PRIMARY KEY,
+			company_id TEXT NOT NULL,
+			campaign_id TEXT NOT NULL,
+			prospect_id TEXT NOT NULL,
+			contact_id TEXT NOT NULL,
+			step INTEGER NOT NULL DEFAULT 1,
+			to_email TEXT NOT NULL DEFAULT '',
+			subject TEXT NOT NULL DEFAULT '',
+			body TEXT NOT NULL DEFAULT '',
+			status TEXT NOT NULL DEFAULT 'draft',
+			scheduled_at TEXT NOT NULL DEFAULT '',
+			sent_at TEXT NOT NULL DEFAULT '',
+			reply_text TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS outreach_suppressions (
+			id TEXT PRIMARY KEY,
+			company_id TEXT NOT NULL,
+			email TEXT NOT NULL,
+			reason TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL
+		)`,
+		`CREATE TABLE IF NOT EXISTS outreach_settings (
+			company_id TEXT PRIMARY KEY,
+			from_name TEXT NOT NULL DEFAULT '',
+			from_email TEXT NOT NULL DEFAULT '',
+			daily_limit INTEGER NOT NULL DEFAULT 20,
+			autopilot INTEGER NOT NULL DEFAULT 0,
+			signature TEXT NOT NULL DEFAULT '',
+			updated_at TEXT NOT NULL
+		)`,
 		`CREATE TABLE IF NOT EXISTS cti_assets (
 			id TEXT PRIMARY KEY,
 			company_id TEXT NOT NULL,

@@ -234,6 +234,98 @@ export type PortfolioTotal = {
   cash: number;
 };
 
+export type OutreachSignal = {
+  key: string;
+  label: string;
+  found: boolean;
+  detail: string;
+};
+
+export type OutreachContact = {
+  id: string;
+  prospect_id: string;
+  name: string;
+  role: string;
+  email: string;
+  email_status: string;
+  source: string;
+  is_primary: boolean;
+  created_at: string;
+};
+
+export type OutreachProspect = {
+  id: string;
+  name: string;
+  website: string;
+  domain: string;
+  industry: string;
+  location: string;
+  source: string;
+  stage: string;
+  score: number;
+  signals: OutreachSignal[];
+  notes: string;
+  last_contacted: string;
+  created_at: string;
+  contacts?: OutreachContact[];
+};
+
+export type OutreachStep = {
+  id: string;
+  position: number;
+  delay_days: number;
+  subject: string;
+  body: string;
+};
+
+export type OutreachCampaign = {
+  id: string;
+  name: string;
+  offer: string;
+  audience: string;
+  tone: string;
+  status: string;
+  daily_limit: number;
+  autopilot: boolean;
+  created_at: string;
+  steps?: OutreachStep[];
+};
+
+export type OutreachMessage = {
+  id: string;
+  campaign_id: string;
+  prospect_id: string;
+  contact_id: string;
+  step: number;
+  to: string;
+  subject: string;
+  body: string;
+  status: string;
+  scheduled_at: string;
+  sent_at: string;
+  reply_text: string;
+  created_at: string;
+};
+
+export type OutreachSettings = {
+  from_name: string;
+  from_email: string;
+  daily_limit: number;
+  autopilot: boolean;
+  signature: string;
+};
+
+export type OutreachPayload = {
+  prospects: OutreachProspect[];
+  campaigns: OutreachCampaign[];
+  messages: OutreachMessage[];
+  suppressions: { id: string; email: string; reason: string; created_at: string }[];
+  settings: OutreachSettings;
+  stats: Record<string, number>;
+  send_ready: boolean;
+  from_address: string;
+};
+
 export type CTIAsset = {
   id: string;
   type: string;
@@ -773,6 +865,79 @@ export const api = {
 
   researchStatus: () =>
     request<{ ok: boolean; searxng: boolean; brave: boolean; search_url: string }>("/api/research/status"),
+
+  outreach: () => request<{ ok: boolean; outreach: OutreachPayload; company: Company }>("/api/outreach"),
+  addOutreachProspect: (input: { name: string; website: string; industry: string; location: string; notes: string; email: string; contact: string; role: string }) =>
+    request<{ ok: boolean; prospect: OutreachProspect }>("/api/outreach/prospects", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  importOutreach: async (file: File) => {
+    const headers = new Headers();
+    if (activeCompany) headers.set("X-Crew-Company", activeCompany);
+    const csrf = readCookie("crew_csrf");
+    if (!csrf) await fetch("/api/csrf", { credentials: "same-origin" });
+    headers.set("X-CSRF-Token", readCookie("crew_csrf"));
+    const form = new FormData();
+    form.append("file", file);
+    const response = await fetch("/api/outreach/import", { method: "POST", body: form, headers, credentials: "same-origin" });
+    const payload = (await response.json().catch(() => ({}))) as { imported?: number; error?: string };
+    if (!response.ok) throw new ApiError(payload.error || "The CSV couldn't be imported.", response.status);
+    return payload as { imported: number };
+  },
+  discoverOutreach: (query: string, location: string, limit = 15) =>
+    request<{ ok: boolean; prospects: OutreachProspect[]; found: number }>("/api/outreach/discover", {
+      method: "POST",
+      body: JSON.stringify({ query, location, limit }),
+    }),
+  scanOutreachProspect: (id: string) =>
+    request<{ ok: boolean; prospect: OutreachProspect }>(`/api/outreach/prospects/${id}/scan`, { method: "POST" }),
+  addOutreachContact: (prospectId: string, input: { name: string; role: string; email: string; source: string; is_primary: boolean }) =>
+    request<{ ok: boolean; contact: OutreachContact }>(`/api/outreach/prospects/${prospectId}/contacts`, {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  createOutreachCampaign: (input: Omit<Partial<OutreachCampaign>, "steps"> & { steps?: { position?: number; delay_days?: number; subject?: string; body?: string }[] }) =>
+    request<{ ok: boolean; campaign: OutreachCampaign }>("/api/outreach/campaigns", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  updateOutreachCampaign: (id: string, input: Omit<Partial<OutreachCampaign>, "steps"> & { steps?: { position?: number; delay_days?: number; subject?: string; body?: string }[] }) =>
+    request<{ ok: boolean; campaign: OutreachCampaign }>(`/api/outreach/campaigns/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(input),
+    }),
+  draftOutreach: (campaignId: string, prospectId: string, contactId: string, step = 1) =>
+    request<{ ok: boolean; message: OutreachMessage; model: string }>("/api/outreach/draft", {
+      method: "POST",
+      body: JSON.stringify({ campaignId, prospectId, contactId, step }),
+    }),
+  outreachMessageStatus: (id: string, status: string, replyText = "") =>
+    request<{ ok: boolean }>(`/api/outreach/messages/${id}/status`, {
+      method: "POST",
+      body: JSON.stringify({ status, replyText }),
+    }),
+  sendOutreachMessage: (id: string) =>
+    request<{ ok: boolean; sent: number; skipped: number }>(`/api/outreach/messages/${id}/send`, { method: "POST" }),
+  sendOutreachBatch: () =>
+    request<{ ok: boolean; sent: number; skipped: number }>("/api/outreach/send", { method: "POST" }),
+  saveOutreachSettings: (settings: OutreachSettings) =>
+    request<{ ok: boolean; settings: OutreachSettings }>("/api/outreach/settings", {
+      method: "PUT",
+      body: JSON.stringify(settings),
+    }),
+  addOutreachSuppression: (email: string, reason: string) =>
+    request<{ ok: boolean }>("/api/outreach/suppressions", {
+      method: "POST",
+      body: JSON.stringify({ email, reason }),
+    }),
+  outreachExport: async () => {
+    const headers = new Headers();
+    if (activeCompany) headers.set("X-Crew-Company", activeCompany);
+    const response = await fetch("/api/outreach/export", { headers, credentials: "same-origin" });
+    if (!response.ok) throw new ApiError("We couldn't export the CSV.", response.status);
+    return response.blob();
+  },
 
   security: () => request<{ ok: boolean; security: SecurityPayload; company: Company }>("/api/security"),
   scanSecurity: () => request<{ ok: boolean; security: SecurityPayload }>("/api/security/scan", { method: "POST" }),

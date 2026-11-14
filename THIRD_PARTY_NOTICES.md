@@ -79,3 +79,23 @@ informed by biz-lens.
 Crew's Cyber Security workspace is inspired by OpenCTI's STIX 2.1 data model,
 company-scoped assets, indicators, reports, relationships, confidence, TLP and
 graph concepts. No OpenCTI source code is copied.
+
+
+## Sellbird
+
+- Source: https://github.com/ethanplusai/sellbird
+- Copyright (c) Sellbird contributors
+- GNU Affero General Public License v3.0
+
+Crew's Outreach workspace follows Sellbird's pipeline concepts (discovery,
+signals, contact verification, approval-first drafts and CSV export) and is
+CSV-compatible with Sellbird exports. No Sellbird source code is vendored.
+
+## Warmbly
+
+- Source: https://github.com/warmbly/warmbly
+- Copyright (c) Warmbly contributors
+- Apache License 2.0
+
+Crew's Outreach sending safeguards are informed by Warmbly's sequence caps,
+suppression and deliverability approach. No Warmbly source code is vendored.

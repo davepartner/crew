@@ -102,6 +102,13 @@ func (s *Store) DeleteUserData(ctx context.Context, id string) error {
 			`DELETE FROM cti_relationships WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
 			`DELETE FROM cti_findings WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
 			`DELETE FROM cti_assessments WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM outreach_prospects WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM outreach_contacts WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM outreach_campaigns WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM outreach_steps WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM outreach_messages WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM outreach_suppressions WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM outreach_settings WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
 			`DELETE FROM companies WHERE user_id = ?`,
 		} {
 			if _, err := tx.ExecContext(ctx, stmt, id); err != nil {

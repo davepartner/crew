@@ -82,7 +82,8 @@ cached deep study so the next run uses the new evidence.
 **Verify against the statement** compares the declared revenue, cost of sales
 and operating costs with an uploaded statement. The result is `verified`,
 `discrepancies` or `evidence_attached`. This is evidence checking, not a
-statutory audit.
+statutory audit; the dialog links to the ICAN directory for a licensed auditor.
+If no text comes back from a scan, the file card prompts for an OCR.space key.
 
 ## Products
 

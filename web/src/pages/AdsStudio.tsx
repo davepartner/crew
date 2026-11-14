@@ -587,6 +587,10 @@ function MetaDeliveryModal({
         Creates an ad set, creative and ad in Meta, all paused. Add the Page ID, landing URL and image URL
         in Settings → Integrations → Meta Ads if you want defaults.
       </p>
+      <div className="row tiny" style={{ gap: 10, marginBottom: 12 }}>
+        <a href="https://developers.facebook.com/docs/pages/access-tokens" target="_blank" rel="noreferrer noopener">Get a Page ID ↗</a>
+        <a href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer noopener">Get a Meta key ↗</a>
+      </div>
       <div className="form-grid">
         <Field label="Daily budget" htmlFor="delivery-budget">
           <Input id="delivery-budget" type="number" min="1" value={budget} onChange={(event) => setBudget(event.target.value)} />

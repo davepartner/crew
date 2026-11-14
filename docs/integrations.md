@@ -43,10 +43,11 @@ Marketing → Ads Studio → **Live ad accounts** is the control surface. Enabli
 campaign asks for confirmation because it can spend immediately. Tokens are
 encrypted at rest and never returned to the browser.
 
-New campaigns are created **paused**. Crew controls the campaign shell, status
-and (where the provider allows it) the campaign daily budget; ad sets, creatives
-and final delivery still need the provider's Ads Manager until those objects are
-added.
+New campaigns are created **paused**. For Meta, **Delivery** builds a paused ad
+set, creative and ad from the campaign, headline, primary text, landing URL,
+image URL and country. TikTok and Google campaign controls are available; their
+ad-group/ad assembly remains in the provider's Ads Manager. All write actions
+require a connected key and explicit confirmation before enabling spend.
 
 ## Search
 
@@ -58,6 +59,18 @@ added.
   Wikipedia and the company website.
 - A public **ticker** in Settings → Company adds live market data from Yahoo
   Finance.
+
+## OCR.space
+
+Optional fallback for scans and images. Add the key in Settings → Integrations;
+Crew runs local Tesseract and OCR.space and keeps the richer result. Get a key
+at https://ocr.space/ocrapi.
+
+## ExchangeRate-API
+
+Portfolio converts products into a chosen reporting currency. A key from
+https://www.exchangerate-api.com/ gives a supported SLA; without one Crew uses
+the provider's public endpoint and still shows the add-key prompt.
 
 ## Safety
 

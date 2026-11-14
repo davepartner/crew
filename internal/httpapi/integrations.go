@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var integrationKinds = []string{"whatsapp", "meta_ads", "tiktok_ads", "google_ads", "brave_search", "ocr_space", "exchange_rate", "virustotal", "abuseipdb", "otx", "shodan"}
+var integrationKinds = []string{"whatsapp", "meta_ads", "tiktok_ads", "google_ads", "brave_search", "ocr_space", "exchange_rate", "virustotal", "abuseipdb", "otx", "shodan", "serper", "tinyfish", "dataforseo", "scavio"}
 
 func integrationFields(kind string) []string {
 	switch kind {
@@ -27,6 +27,10 @@ func integrationFields(kind string) []string {
 		return []string{"api_key"}
 	case "exchange_rate":
 		return []string{"api_key", "base_currency"}
+	case "serper", "tinyfish", "scavio":
+		return []string{"api_key"}
+	case "dataforseo":
+		return []string{"login", "password"}
 	}
 	return nil
 }
@@ -194,7 +198,7 @@ func integrationReady(kind string, config map[string]string) bool {
 func publicIntegration(kind string, config map[string]string) map[string]string {
 	out := map[string]string{}
 	for _, field := range integrationFields(kind) {
-		if field == "token" || field == "access_token" || field == "api_key" || field == "client_secret" || strings.Contains(field, "secret") {
+		if field == "token" || field == "access_token" || field == "api_key" || field == "password" || field == "client_secret" || strings.Contains(field, "secret") {
 			continue
 		}
 		if config[field] != "" {
@@ -236,6 +240,41 @@ func (s *Server) testIntegration(ctx context.Context, kind string, config map[st
 		}
 		if code, ok := payload["OCRExitCode"]; ok && fmt.Sprint(code) == "3" {
 			return nil, fmt.Errorf("OCR.space rejected that key")
+		}
+		return map[string]any{"connected": true}, nil
+	case "serper":
+		endpoint := "https://google.serper.dev/search"
+		body := map[string]any{"q": "roofers in Lagos", "num": 1}
+		if err := postJSON(ctx, endpoint, map[string]string{"X-API-KEY": config["api_key"]}, body, &map[string]any{}); err != nil {
+			return nil, fmt.Errorf("Serper rejected that key: %w", err)
+		}
+		return map[string]any{"connected": true}, nil
+	case "tinyfish":
+		endpoint := "https://api.search.tinyfish.ai?query=roofers+in+Lagos"
+		var payload map[string]any
+		if err := getJSON(ctx, endpoint, map[string]string{"X-API-Key": config["api_key"]}, &payload); err != nil {
+			return nil, fmt.Errorf("TinyFish rejected that key: %w", err)
+		}
+		return map[string]any{"connected": true}, nil
+	case "dataforseo":
+		endpoint := "https://api.dataforseo.com/v3/business_data/business_listings/search/live"
+		request, _ := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(`[{"keyword":"roofers","location_name":"Lagos,Nigeria","limit":1}]`))
+		request.SetBasicAuth(config["login"], config["password"])
+		request.Header.Set("Content-Type", "application/json")
+		response, err := (&http.Client{Timeout: 15 * time.Second}).Do(request)
+		if err != nil {
+			return nil, fmt.Errorf("DataForSEO rejected those credentials: %w", err)
+		}
+		defer response.Body.Close()
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, fmt.Errorf("DataForSEO rejected those credentials: HTTP %d", response.StatusCode)
+		}
+		return map[string]any{"connected": true}, nil
+	case "scavio":
+		endpoint := "https://api.scavio.dev/api/v2/google/maps/search"
+		body := map[string]any{"query": "roofers in Lagos", "limit": 1}
+		if err := postJSON(ctx, endpoint, map[string]string{"Authorization": "Bearer " + config["api_key"]}, body, &map[string]any{}); err != nil {
+			return nil, fmt.Errorf("Scavio rejected that key: %w", err)
 		}
 		return map[string]any{"connected": true}, nil
 	case "exchange_rate":

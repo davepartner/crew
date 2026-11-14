@@ -191,6 +191,7 @@ func (s *Server) handleOutreachDiscover(w http.ResponseWriter, r *http.Request) 
 		Query    string `json:"query"`
 		Location string `json:"location"`
 		Limit    int    `json:"limit"`
+		Provider string `json:"provider"`
 	}
 	if err := decodeJSON(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -204,9 +205,25 @@ func (s *Server) handleOutreachDiscover(w http.ResponseWriter, r *http.Request) 
 		body.Limit = 15
 	}
 
-	ctx, cancel := context.WithTimeout(r.Context(), 40*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
 	defer cancel()
-	results, err := discoverOSM(ctx, trim(body.Query, 120), trim(body.Location, 120), body.Limit, s.cfg.SearchURL)
+
+	provider := strings.ToLower(trim(body.Provider, 30))
+	var err error
+	var results []store.OutreachProspect
+	if provider == "" || provider == "free" {
+		results, err = discoverOSM(ctx, trim(body.Query, 120), trim(body.Location, 120), body.Limit, s.cfg.SearchURL)
+	} else {
+		config, loadErr := s.loadIntegration(r.Context(), company.ID, provider)
+		if loadErr != nil {
+			writeJSON(w, http.StatusConflict, map[string]any{
+				"ok": false, "code": "no_provider_key",
+				"error": "Add the " + provider + " API key in Settings → Integrations first.",
+			})
+			return
+		}
+		results, err = discoverPaid(ctx, provider, trim(body.Query, 120), trim(body.Location, 120), body.Limit, config)
+	}
 	if err != nil {
 		writeError(w, http.StatusBadGateway, "Discovery failed: "+err.Error())
 		return
@@ -830,6 +847,144 @@ func webDiscovery(ctx context.Context, query, location string, limit int, search
 		return nil, fmt.Errorf("no businesses found; OpenStreetMap may be unavailable and web search returned no usable sites")
 	}
 	return out, nil
+}
+
+func discoverPaid(ctx context.Context, provider, query, location string, limit int, config map[string]string) ([]store.OutreachProspect, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	var payload any
+
+	switch provider {
+	case "serper":
+		body := map[string]any{"q": query + " in " + location, "num": limit}
+		encoded, _ := json.Marshal(body)
+		request, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://google.serper.dev/search", strings.NewReader(string(encoded)))
+		request.Header.Set("X-API-KEY", config["api_key"])
+		request.Header.Set("Content-Type", "application/json")
+		response, err := client.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		defer response.Body.Close()
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, fmt.Errorf("Serper returned HTTP %d", response.StatusCode)
+		}
+		if err := json.NewDecoder(io.LimitReader(response.Body, 3<<20)).Decode(&payload); err != nil {
+			return nil, err
+		}
+
+	case "tinyfish":
+		endpoint := "https://api.search.tinyfish.ai?query=" + url.QueryEscape(query+" in "+location) + "&location=" + url.QueryEscape(location)
+		request, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+		request.Header.Set("X-API-Key", config["api_key"])
+		response, err := client.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		defer response.Body.Close()
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, fmt.Errorf("TinyFish returned HTTP %d", response.StatusCode)
+		}
+		if err := json.NewDecoder(io.LimitReader(response.Body, 3<<20)).Decode(&payload); err != nil {
+			return nil, err
+		}
+
+	case "dataforseo":
+		body, _ := json.Marshal([]map[string]any{{"keyword": query, "location_name": location, "limit": limit}})
+		request, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.dataforseo.com/v3/business_data/business_listings/search/live", strings.NewReader(string(body)))
+		request.SetBasicAuth(config["login"], config["password"])
+		request.Header.Set("Content-Type", "application/json")
+		response, err := client.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		defer response.Body.Close()
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, fmt.Errorf("DataForSEO returned HTTP %d", response.StatusCode)
+		}
+		if err := json.NewDecoder(io.LimitReader(response.Body, 5<<20)).Decode(&payload); err != nil {
+			return nil, err
+		}
+
+	case "scavio":
+		body, _ := json.Marshal(map[string]any{"query": query + " in " + location, "limit": limit})
+		request, _ := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.scavio.dev/api/v2/google/maps/search", strings.NewReader(string(body)))
+		request.Header.Set("Authorization", "Bearer "+config["api_key"])
+		request.Header.Set("Content-Type", "application/json")
+		response, err := client.Do(request)
+		if err != nil {
+			return nil, err
+		}
+		defer response.Body.Close()
+		if response.StatusCode < 200 || response.StatusCode >= 300 {
+			return nil, fmt.Errorf("Scavio returned HTTP %d", response.StatusCode)
+		}
+		if err := json.NewDecoder(io.LimitReader(response.Body, 5<<20)).Decode(&payload); err != nil {
+			return nil, err
+		}
+
+	default:
+		return nil, fmt.Errorf("unknown provider %s", provider)
+	}
+
+	prospects := []store.OutreachProspect{}
+	seen := map[string]bool{}
+	collectProspects(payload, location, &prospects, seen, limit)
+	if len(prospects) == 0 {
+		return nil, fmt.Errorf("the provider returned no usable business websites")
+	}
+	return prospects, nil
+}
+
+func collectProspects(value any, location string, out *[]store.OutreachProspect, seen map[string]bool, limit int) {
+	if len(*out) >= limit {
+		return
+	}
+	switch item := value.(type) {
+	case map[string]any:
+		title := firstString(item, "title", "name", "business_name", "company_name")
+		website := firstString(item, "url", "link", "website", "domain")
+		if title != "" && website != "" {
+			website = normalizeWebsite(website)
+			domain := domainOf(website)
+			if domain != "" && !seen[domain] && !directoryDomain(domain) {
+				seen[domain] = true
+				*out = append(*out, store.OutreachProspect{
+					Name: title, Website: website, Domain: domain, Location: location, Source: "paid discovery",
+				})
+			}
+		}
+		for _, child := range item {
+			if len(*out) >= limit {
+				return
+			}
+			collectProspects(child, location, out, seen, limit)
+		}
+	case []any:
+		for _, child := range item {
+			if len(*out) >= limit {
+				return
+			}
+			collectProspects(child, location, out, seen, limit)
+		}
+	}
+}
+
+func firstString(item map[string]any, keys ...string) string {
+	for _, key := range keys {
+		if value, ok := item[key].(string); ok && strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
+func directoryDomain(domain string) bool {
+	for _, blocked := range []string{"wikipedia.org", "facebook.com", "instagram.com", "linkedin.com", "yelp.", "tripadvisor.", "yellowpages.", "reddit.com", "youtube.com", "pinterest.", "google.com", "maps.google"} {
+		if strings.Contains(domain, blocked) {
+			return true
+		}
+	}
+	return false
 }
 
 func verifyEmailStatus(ctx context.Context, email string) string {

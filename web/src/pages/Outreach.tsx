@@ -520,25 +520,107 @@ function DiscoverModal({ open, onClose, onSaved }: { open: boolean; onClose: () 
   const [query, setQuery] = useState("roofers");
   const [location, setLocation] = useState("Lagos");
   const [limit, setLimit] = useState("15");
+  const [provider, setProvider] = useState("free");
+  const [configured, setConfigured] = useState<Record<string, boolean>>({});
+  const [values, setValues] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const providers: Record<string, { label: string; keyUrl?: string; fields: { key: string; label: string; secret?: boolean }[] }> = {
+    free: { label: "Free — OpenStreetMap + web", fields: [] },
+    serper: { label: "Serper (paid)", keyUrl: "https://serper.dev/", fields: [{ key: "api_key", label: "Serper API key", secret: true }] },
+    tinyfish: { label: "TinyFish (free tier / paid)", keyUrl: "https://agent.tinyfish.ai/api-keys", fields: [{ key: "api_key", label: "TinyFish API key", secret: true }] },
+    dataforseo: { label: "DataForSEO (paid)", keyUrl: "https://dataforseo.com/", fields: [{ key: "login", label: "API login" }, { key: "password", label: "API password", secret: true }] },
+    scavio: { label: "Scavio (paid)", keyUrl: "https://dashboard.scavio.dev/", fields: [{ key: "api_key", label: "Scavio API key", secret: true }] },
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    api.integrations()
+      .then((result) => {
+        const next: Record<string, boolean> = {};
+        for (const item of result.integrations) next[item.kind] = item.configured;
+        setConfigured(next);
+      })
+      .catch(() => setConfigured({}));
+  }, [open]);
+
+  const spec = providers[provider];
+  const ready = provider === "free" || configured[provider];
+
+  async function saveKey() {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.saveIntegration(provider, values);
+      setConfigured((current) => ({ ...current, [provider]: true }));
+      setValues({});
+      push(`${spec.label} key saved.`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "We couldn't save that key.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function discover() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.discoverOutreach(query, location, Number(limit) || 15, provider);
+      push(`Found ${result.found}; added ${result.prospects.length}.`);
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Discovery failed.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
-    <Modal open={open} title="Discover businesses" onClose={onClose} footer={<><Button onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" loading={busy} onClick={async () => {
-      setBusy(true); setError(null);
-      try { const result = await api.discoverOutreach(query, location, Number(limit) || 15); push(`Found ${result.found}; added ${result.prospects.length}.`); onSaved(); }
-      catch (err) { setError(err instanceof ApiError ? err.message : "Discovery failed."); }
-      finally { setBusy(false); }
-    }}>Discover</Button></>}>
+    <Modal open={open} title="Discover businesses" onClose={onClose} footer={<><Button onClick={onClose} disabled={busy}>Cancel</Button><Button variant="primary" loading={busy} disabled={!ready} onClick={discover}>Discover</Button></>}>
       <p className="small muted mb-16">
-        Free discovery: OpenStreetMap first, then the built-in web search as a fallback. Coverage is best for
-        businesses with a physical location.
+        Free discovery uses OpenStreetMap and the built-in web search. Paid providers are optional and use their own credits.
       </p>
       <div className="form-grid">
         <Field label="Look for" htmlFor="od-query"><Input id="od-query" value={query} onChange={(e) => setQuery(e.target.value)} /></Field>
         <Field label="City or region" htmlFor="od-location"><Input id="od-location" value={location} onChange={(e) => setLocation(e.target.value)} /></Field>
         <Field label="Limit" htmlFor="od-limit"><Input id="od-limit" type="number" min="1" max="30" value={limit} onChange={(e) => setLimit(e.target.value)} /></Field>
       </div>
+      <Field label="Data source" htmlFor="od-provider">
+        <select id="od-provider" className="input" value={provider} onChange={(e) => { setProvider(e.target.value); setError(null); }}>
+          {Object.entries(providers).map(([key, value]) => <option key={key} value={key}>{value.label}</option>)}
+        </select>
+      </Field>
+
+      {provider !== "free" && !ready ? (
+        <div className="setup-callout" style={{ marginBottom: 0 }}>
+          <div style={{ flex: 1 }}>
+            <strong>Add the {spec.label} key</strong>
+            <p className="small muted" style={{ margin: "4px 0 0" }}>You control the provider account and its spend.</p>
+            <div className="row" style={{ gap: 6, marginTop: 8, flexWrap: "wrap" }}>
+              {spec.fields.map((field) => (
+                <Input
+                  key={field.key}
+                  type={field.secret ? "password" : "text"}
+                  placeholder={field.label}
+                  value={values[field.key] ?? ""}
+                  onChange={(e) => setValues((current) => ({ ...current, [field.key]: e.target.value }))}
+                />
+              ))}
+              <Button size="sm" loading={busy} onClick={saveKey}>Save key</Button>
+              {spec.keyUrl ? <a className="button button-small" href={spec.keyUrl} target="_blank" rel="noreferrer noopener">Get a key ↗</a> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {provider !== "free" && ready ? (
+        <p className="tiny muted">
+          {spec.label} connected. This search may consume provider credits.{" "}
+          {spec.keyUrl ? <a href={spec.keyUrl} target="_blank" rel="noreferrer noopener">Provider dashboard ↗</a> : null}
+        </p>
+      ) : null}
       {error ? <p className="form-error">{error}</p> : null}
     </Modal>
   );

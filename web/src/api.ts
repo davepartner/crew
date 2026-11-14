@@ -885,10 +885,10 @@ export const api = {
     if (!response.ok) throw new ApiError(payload.error || "The CSV couldn't be imported.", response.status);
     return payload as { imported: number };
   },
-  discoverOutreach: (query: string, location: string, limit = 15) =>
+  discoverOutreach: (query: string, location: string, limit = 15, provider = "free") =>
     request<{ ok: boolean; prospects: OutreachProspect[]; found: number }>("/api/outreach/discover", {
       method: "POST",
-      body: JSON.stringify({ query, location, limit }),
+      body: JSON.stringify({ query, location, limit, provider }),
     }),
   scanOutreachProspect: (id: string) =>
     request<{ ok: boolean; prospect: OutreachProspect }>(`/api/outreach/prospects/${id}/scan`, { method: "POST" }),

@@ -57,8 +57,11 @@ From **Mautic/Twenty/Chatwoot**:
 
 ## Pipeline
 
-1. **Discover** — free OpenStreetMap query by trade and location, or import a
-   Sellbird CSV.
+1. **Discover** — free OpenStreetMap query by trade and location, with built-in
+   web search as fallback, or import a Sellbird CSV. Optional paid providers:
+   Serper, TinyFish, DataForSEO and Scavio. Add each key from
+   Settings → Integrations or directly in the Discover dialog; each provider
+   bills its own account.
 2. **Scan** — fetch the prospect's site and record buying signals: no booking,
    no chat, no schema, ads pixel, hiring, no fresh blog, mobile viewport, public
    email.
@@ -76,6 +79,8 @@ From **Mautic/Twenty/Chatwoot**:
 - No mailbox warmup pool.
 - No inbound IMAP sync; replies are logged manually.
 - OpenStreetMap coverage is best for businesses with a physical location.
+- Paid discovery spends the user's provider credits; Crew never buys credits or
+  hides the provider bill.
 - No automated follow-up scheduler yet; sequence steps are stored and step 1 is
   drafted.
 - Email verification is MX/syntax/role based, not SMTP mailbox probing.

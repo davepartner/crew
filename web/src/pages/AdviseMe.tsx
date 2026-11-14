@@ -636,6 +636,11 @@ function FilesCard() {
               <span style={{ minWidth: 0 }}>
                 <span className="advise-file-name">{file.name}</span>
                 <span className="tiny muted">{Math.ceil(file.size / 1024)} KB · {file.mime || "file"}</span>
+                {!file.has_text && (file.mime.includes("pdf") || file.mime.startsWith("image/")) ? (
+                  <span className="tiny muted">
+                    No text extracted. <a href="/settings">Add an OCR key</a>.
+                  </span>
+                ) : null}
               </span>
               <button
                 className="link-button tiny"
@@ -917,6 +922,17 @@ function AuditModal({
         Upload the signed statement under Company files, then pick it here. Crew checks whether the declared
         revenue, cost of sales and operating costs appear in the document. This is evidence checking, not a statutory audit.
       </p>
+      <div className="setup-callout">
+        <div>
+          <strong>Need a statutory audit?</strong>
+          <p className="small muted" style={{ margin: "4px 0 0" }}>
+            Crew can store and check the evidence. A licensed auditor must sign the statutory opinion.
+          </p>
+        </div>
+        <a className="button button-small" href="https://www.icanig.org/" target="_blank" rel="noreferrer noopener">
+          Find a licensed auditor ↗
+        </a>
+      </div>
       {files === null ? <Skeleton lines={2} /> : null}
       {files && files.length === 0 ? (
         <p className="form-error">No files yet. Upload the statement in the Company files card first.</p>
@@ -1028,6 +1044,7 @@ function ShareModal({
   const [subject, setSubject] = useState(`Advice for ${company.name}`);
   const [body, setBody] = useState("");
   const [template, setTemplate] = useState(false);
+  const [whatsappReady, setWhatsappReady] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -1045,6 +1062,17 @@ function ShareModal({
     setBody(lines.join("\n"));
     setSubject(`Advice for ${company.name}`);
     setError(null);
+    if (kind === "whatsapp") {
+      setWhatsappReady(null);
+      api.integrations()
+        .then((result) => {
+          const integration = result.integrations.find((item) => item.kind === "whatsapp");
+          setWhatsappReady(Boolean(integration?.configured));
+          if (integration?.details.default_to && to === "") setTo(integration.details.default_to);
+        })
+        .catch(() => setWhatsappReady(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [kind, company.name, report, advice]);
 
   async function send() {
@@ -1074,15 +1102,31 @@ function ShareModal({
       footer={
         <>
           <Button onClick={onClose} disabled={busy}>Cancel</Button>
-          <Button variant="primary" onClick={send} loading={busy} disabled={to.trim() === "" || body.trim() === ""}>
+          <Button variant="primary" onClick={send} loading={busy} disabled={to.trim() === "" || body.trim() === "" || (kind === "whatsapp" && whatsappReady === false)}>
             Send
           </Button>
         </>
       }
     >
-      {kind === "whatsapp" ? (
+      {kind === "whatsapp" && whatsappReady === false ? (
+        <div className="setup-callout">
+          <div>
+            <strong>Connect WhatsApp first</strong>
+            <p className="small muted" style={{ margin: "4px 0 0" }}>
+              You need a Meta Cloud API phone number ID and a permanent token.
+            </p>
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <a className="button button-small" href="https://developers.facebook.com/docs/whatsapp/cloud-api/get-started" target="_blank" rel="noreferrer noopener">
+              Get credentials
+            </a>
+            <a className="button button-small button-primary" href="/settings">Open Settings</a>
+          </div>
+        </div>
+      ) : null}
+      {kind === "whatsapp" && whatsappReady !== false ? (
         <p className="small muted mb-16">
-          Connect WhatsApp in Settings → Integrations. WhatsApp only allows free-form text inside the 24-hour customer window.
+          Free-form text works inside Meta's 24-hour window. Tick the template option to send outside it.
         </p>
       ) : null}
       <Field label={kind === "email" ? "Recipient email" : "Recipient number"} htmlFor="share-to">
@@ -1215,7 +1259,13 @@ function AdviceChat({ company, enabled }: { company: Company; enabled: boolean }
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [turns, setTurns] = useState<{ role: "user" | "assistant"; content: string; sources?: ChatSource[] }[]>([]);
+  const [searchStatus, setSearchStatus] = useState<{ searxng: boolean; brave: boolean } | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    api.researchStatus().then((result) => setSearchStatus(result)).catch(() => setSearchStatus(null));
+  }, [open]);
 
   useEffect(() => {
     bottom.current?.scrollIntoView({ behavior: "smooth" });
@@ -1256,6 +1306,20 @@ function AdviceChat({ company, enabled }: { company: Company; enabled: boolean }
           </div>
 
           <div className="advisor-messages">
+            {searchStatus && !searchStatus.searxng && !searchStatus.brave ? (
+              <div className="setup-callout" style={{ padding: "10px 12px", marginBottom: 4 }}>
+                <div>
+                  <strong>Web search is offline</strong>
+                  <p className="tiny muted" style={{ margin: "3px 0 0" }}>
+                    Add a Brave Search key to restore arbitrary web results.
+                  </p>
+                </div>
+                <a className="button button-small" href="https://api.search.brave.com/app/keys" target="_blank" rel="noreferrer noopener">
+                  Get a key ↗
+                </a>
+              </div>
+            ) : null}
+
             {turns.length === 0 ? (
               <div className="advisor-empty">
                 <p>Ask anything about this company.</p>

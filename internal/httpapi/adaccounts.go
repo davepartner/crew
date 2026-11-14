@@ -469,3 +469,110 @@ func googleRequest(ctx context.Context, config map[string]string, accessToken, c
 	}
 	return json.Unmarshal(body, target)
 }
+
+func (s *Server) handleMetaDelivery(w http.ResponseWriter, r *http.Request) {
+	company := companyFrom(r)
+	config, err := s.loadIntegration(r.Context(), company.ID, "meta_ads")
+	if err != nil {
+		writeError(w, http.StatusConflict, "Connect Meta Ads first.")
+		return
+	}
+
+	var body struct {
+		Budget      float64 `json:"budget"`
+		Headline    string  `json:"headline"`
+		PrimaryText string  `json:"primaryText"`
+		Link        string  `json:"link"`
+		ImageURL    string  `json:"imageUrl"`
+		Country     string  `json:"country"`
+	}
+	if err := decodeJSON(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+
+	pageID := config["page_id"]
+	if pageID == "" {
+		writeError(w, http.StatusUnprocessableEntity, "Add your Facebook Page ID in Settings → Integrations → Meta Ads, then try again.")
+		return
+	}
+	link := trim(body.Link, 500)
+	if link == "" {
+		link = config["link_url"]
+	}
+	image := trim(body.ImageURL, 500)
+	if image == "" {
+		image = config["image_url"]
+	}
+	headline := trim(body.Headline, 120)
+	primary := trim(body.PrimaryText, 1000)
+	if link == "" || image == "" || headline == "" || primary == "" || body.Budget <= 0 {
+		writeError(w, http.StatusUnprocessableEntity, "Add a headline, primary text, landing link, image URL and daily budget.")
+		return
+	}
+	country := strings.ToUpper(trim(body.Country, 2))
+	if country == "" {
+		country = "NG"
+	}
+
+	ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
+	defer cancel()
+
+	account := strings.TrimPrefix(config["account_id"], "act_")
+	base := "https://graph.facebook.com/v20.0/act_" + url.PathEscape(account)
+	accessToken := config["access_token"]
+
+	adSetForm := url.Values{}
+	adSetForm.Set("name", "Crew delivery — "+headline)
+	adSetForm.Set("campaign_id", r.PathValue("id"))
+	adSetForm.Set("daily_budget", fmt.Sprintf("%.0f", body.Budget*100))
+	adSetForm.Set("billing_event", "IMPRESSIONS")
+	adSetForm.Set("optimization_goal", "LINK_CLICKS")
+	adSetForm.Set("targeting", fmt.Sprintf(`{"geo_locations":{"countries":[%q]}}`, country))
+	adSetForm.Set("status", "PAUSED")
+	adSetForm.Set("access_token", accessToken)
+	var adSet struct {
+		ID string `json:"id"`
+	}
+	if err := postFormJSON(ctx, base+"/adsets", adSetForm, &adSet); err != nil {
+		writeError(w, http.StatusBadGateway, "Meta rejected the ad set: "+err.Error())
+		return
+	}
+
+	story, _ := json.Marshal(map[string]any{
+		"page_id": pageID,
+		"link_data": map[string]any{
+			"message": primary, "link": link, "name": headline, "image_url": image,
+		},
+	})
+	creativeForm := url.Values{}
+	creativeForm.Set("name", "Crew creative — "+headline)
+	creativeForm.Set("object_story_spec", string(story))
+	creativeForm.Set("access_token", accessToken)
+	var creative struct {
+		ID string `json:"id"`
+	}
+	if err := postFormJSON(ctx, base+"/adcreatives", creativeForm, &creative); err != nil {
+		writeError(w, http.StatusBadGateway, "Meta rejected the creative: "+err.Error())
+		return
+	}
+
+	adForm := url.Values{}
+	adForm.Set("name", "Crew ad — "+headline)
+	adForm.Set("adset_id", adSet.ID)
+	adForm.Set("creative", fmt.Sprintf(`{"creative_id":%q}`, creative.ID))
+	adForm.Set("status", "PAUSED")
+	adForm.Set("access_token", accessToken)
+	var ad struct {
+		ID string `json:"id"`
+	}
+	if err := postFormJSON(ctx, base+"/ads", adForm, &ad); err != nil {
+		writeError(w, http.StatusBadGateway, "Meta rejected the ad: "+err.Error())
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, map[string]any{
+		"ok": true, "ad_set_id": adSet.ID, "creative_id": creative.ID, "ad_id": ad.ID,
+		"status": "PAUSED",
+	})
+}

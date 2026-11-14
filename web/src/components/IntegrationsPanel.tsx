@@ -4,9 +4,11 @@ import { Button, Field, Input, Skeleton, useToast } from "../ui";
 
 type FieldSpec = { key: string; label: string; secret?: boolean; placeholder?: string; hint?: string };
 
-const specs: Record<string, { title: string; blurb: string; fields: FieldSpec[]; testLabel?: string }> = {
+const specs: Record<string, { title: string; blurb: string; fields: FieldSpec[]; testLabel?: string; getKey?: string; docs?: string }> = {
   whatsapp: {
     title: "WhatsApp Cloud API",
+    getKey: "https://developers.facebook.com/docs/whatsapp/cloud-api/get-started",
+    docs: "https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates",
     blurb: "Send approved text messages and reports to customers from your own WhatsApp Business number.",
     fields: [
       { key: "phone_number_id", label: "Phone number ID", placeholder: "1234567890" },
@@ -19,15 +21,22 @@ const specs: Record<string, { title: string; blurb: string; fields: FieldSpec[];
   },
   meta_ads: {
     title: "Meta Ads",
+    getKey: "https://developers.facebook.com/apps/",
+    docs: "https://developers.facebook.com/docs/marketing-apis",
     blurb: "List campaigns, create paused campaigns, pause/enable and change daily budgets.",
     fields: [
       { key: "account_id", label: "Ad account ID", placeholder: "act_1234567890" },
       { key: "access_token", label: "Access token", secret: true },
+      { key: "page_id", label: "Facebook Page ID", placeholder: "1234567890", hint: "Optional. Needed to build an ad creative." },
+      { key: "link_url", label: "Default landing URL", placeholder: "https://…", hint: "Optional. Used to build an ad creative." },
+      { key: "image_url", label: "Default image URL", placeholder: "https://…/ad.jpg", hint: "Optional. Used to build an ad creative." },
     ],
     testLabel: "Read account",
   },
   tiktok_ads: {
     title: "TikTok Ads",
+    getKey: "https://developers.tiktok.com/",
+    docs: "https://business-api.tiktok.com/portal/docs",
     blurb: "List campaigns, create paused campaigns, pause/enable and change budgets.",
     fields: [
       { key: "advertiser_id", label: "Advertiser ID", placeholder: "7000000000000000000" },
@@ -37,6 +46,8 @@ const specs: Record<string, { title: string; blurb: string; fields: FieldSpec[];
   },
   google_ads: {
     title: "Google Ads",
+    getKey: "https://developers.google.com/google-ads/api/docs/get-started/dev-token",
+    docs: "https://developers.google.com/google-ads/api/docs/start",
     blurb: "List campaigns, create paused campaigns and pause/enable them. Budgets stay in Google Ads.",
     fields: [
       { key: "developer_token", label: "Developer token", secret: true },
@@ -49,8 +60,29 @@ const specs: Record<string, { title: string; blurb: string; fields: FieldSpec[];
   },
   brave_search: {
     title: "Brave Search",
+    getKey: "https://api.search.brave.com/app/keys",
+    docs: "https://api.search.brave.com/app/documentation/web-search",
     blurb: "Arbitrary web search for the advisor. Without a key, Crew falls back to live industry news and Wikipedia.",
     fields: [{ key: "api_key", label: "Brave Search API key", secret: true }],
+    testLabel: "Test key",
+  },
+  ocr_space: {
+    title: "OCR.space",
+    getKey: "https://ocr.space/ocrapi",
+    docs: "https://ocr.space/ocrapi",
+    blurb: "Fallback OCR for scans and images when local Tesseract is unavailable or produces nothing.",
+    fields: [{ key: "api_key", label: "OCR.space API key", secret: true }],
+    testLabel: "Test key",
+  },
+  exchange_rate: {
+    title: "ExchangeRate-API",
+    getKey: "https://www.exchangerate-api.com/",
+    docs: "https://www.exchangerate-api.com/docs/overview",
+    blurb: "Convert every product into one reporting currency in Portfolio.",
+    fields: [
+      { key: "api_key", label: "API key", secret: true },
+      { key: "base_currency", label: "Default base currency", placeholder: "USD", hint: "Optional. USD, NGN, GBP, EUR…" },
+    ],
     testLabel: "Test key",
   },
 };
@@ -204,6 +236,10 @@ export function IntegrationsPanel() {
                 <div>
                   <h2 className="section-title" style={{ marginBottom: 4 }}>{spec.title}</h2>
                   <p className="small muted" style={{ margin: 0 }}>{spec.blurb}</p>
+                  <div className="row tiny" style={{ gap: 10, marginTop: 6 }}>
+                    {spec.getKey ? <a href={spec.getKey} target="_blank" rel="noreferrer noopener">Get a key ↗</a> : null}
+                    {spec.docs ? <a href={spec.docs} target="_blank" rel="noreferrer noopener">Docs ↗</a> : null}
+                  </div>
                 </div>
                 <span className={`badge ${configured ? "badge-done" : "badge-todo"}`}>
                   {configured ? "Connected" : "Not connected"}

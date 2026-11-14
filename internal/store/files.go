@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"strings"
 	"time"
 )
 
@@ -14,13 +15,14 @@ type CompanyFile struct {
 	Size      int64     `json:"size"`
 	Path      string    `json:"-"`
 	Text      string    `json:"-"`
+	HasText   bool      `json:"has_text"`
 	CreatedAt time.Time `json:"created_at"`
 }
 
 func (s *Store) CreateCompanyFile(ctx context.Context, userID, companyID, name, mime, path, text string, size int64) (CompanyFile, error) {
 	file := CompanyFile{
 		ID: NewID(), CompanyID: companyID, Name: name, Mime: mime, Size: size,
-		Path: path, Text: text, CreatedAt: time.Now().UTC(),
+		Path: path, Text: text, HasText: strings.TrimSpace(text) != "", CreatedAt: time.Now().UTC(),
 	}
 
 	_, err := s.db.ExecContext(ctx, `
@@ -51,6 +53,7 @@ func (s *Store) ListCompanyFiles(ctx context.Context, companyID string) ([]Compa
 			return nil, err
 		}
 		file.CompanyID = companyID
+		file.HasText = strings.TrimSpace(file.Text) != ""
 		file.CreatedAt = ParseTime(created)
 		files = append(files, file)
 	}
@@ -71,6 +74,7 @@ func (s *Store) GetCompanyFile(ctx context.Context, companyID, id string) (Compa
 		return CompanyFile{}, err
 	}
 	file.CompanyID = companyID
+	file.HasText = strings.TrimSpace(file.Text) != ""
 	file.CreatedAt = ParseTime(created)
 	return file, nil
 }

@@ -102,10 +102,13 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/files/{id}/download", s.requireUser(s.requireCompany(s.handleDownloadFile)))
 	mux.HandleFunc("DELETE /api/files/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteFile))))
 
+	mux.HandleFunc("GET /api/research/status", s.requireUser(s.requireCompany(s.handleResearchStatus)))
+
 	mux.HandleFunc("GET /api/adaccounts", s.requireUser(s.requireCompany(s.handleAdAccounts)))
 	mux.HandleFunc("POST /api/adaccounts/{platform}/campaigns", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleCreateAdCampaign))))
 	mux.HandleFunc("POST /api/adaccounts/{platform}/campaigns/{id}/status", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleAdCampaignStatus))))
 	mux.HandleFunc("POST /api/adaccounts/{platform}/campaigns/{id}/budget", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleAdCampaignBudget))))
+	mux.HandleFunc("POST /api/adaccounts/meta/campaigns/{id}/delivery", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleMetaDelivery))))
 
 	mux.HandleFunc("GET /api/portfolio", s.requireUser(s.requireCompany(s.handlePortfolio)))
 

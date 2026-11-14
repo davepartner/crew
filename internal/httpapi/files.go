@@ -84,8 +84,12 @@ func (s *Server) handleUploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	extractCtx, cancel := context.WithTimeout(r.Context(), 45*time.Second)
-	text := extract.Text(extractCtx, path, mime, data)
+	extractCtx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
+	ocrKey := ""
+	if config, err := s.loadIntegration(r.Context(), company.ID, "ocr_space"); err == nil {
+		ocrKey = config["api_key"]
+	}
+	text := extract.TextWithKey(extractCtx, path, mime, data, ocrKey)
 	cancel()
 
 	_ = s.store.DeleteCompanyAdvice(r.Context(), company.ID)

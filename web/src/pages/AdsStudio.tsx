@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { api, ApiError, type AdAccount, type AdCampaign, type AdConcept, type AdResult, type AdsBrief, type Agent } from "../api";
 import { navigate } from "../router";
 import { money } from "../time";
-import { Button, Field, Input, Select, Skeleton, Textarea, useToast } from "../ui";
+import { Button, Field, Input, Modal, Select, Skeleton, Textarea, useToast } from "../ui";
 
 const platforms = [
   { key: "meta", label: "Meta", hint: "Facebook + Instagram" },
@@ -345,6 +345,7 @@ function AdAccountsPanel() {
   const [name, setName] = useState("");
   const [budget, setBudget] = useState("20");
   const [budgets, setBudgets] = useState<Record<string, string>>({});
+  const [delivery, setDelivery] = useState<{ platform: string; campaign: { id: string; name: string } } | null>(null);
 
   function load() {
     api.adAccounts()
@@ -418,9 +419,20 @@ function AdAccountsPanel() {
 
       {accounts === null ? <Skeleton lines={2} /> : null}
       {accounts && connected.length === 0 ? (
-        <p className="small muted mt-8">
-          No ad account connected. <a href="/settings">Settings → Integrations</a>.
-        </p>
+        <div className="setup-callout" style={{ marginTop: 10, marginBottom: 0 }}>
+          <div>
+            <strong>Connect an ad account to publish and control spend</strong>
+            <p className="small muted" style={{ margin: "4px 0 0" }}>
+              Add the API key and account ID in Settings → Integrations. Meta, TikTok and Google links below.
+            </p>
+          </div>
+          <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+            <a className="button button-small" href="https://developers.facebook.com/apps/" target="_blank" rel="noreferrer noopener">Meta key ↗</a>
+            <a className="button button-small" href="https://developers.tiktok.com/" target="_blank" rel="noreferrer noopener">TikTok key ↗</a>
+            <a className="button button-small" href="https://developers.google.com/google-ads/api/docs/get-started/dev-token" target="_blank" rel="noreferrer noopener">Google key ↗</a>
+            <a className="button button-small button-primary" href="/settings">Add key</a>
+          </div>
+        </div>
       ) : null}
 
       {open && connected.length > 0 ? (
@@ -450,7 +462,7 @@ function AdAccountsPanel() {
                   {account.platform === "google" ? (
                     <span className="tiny muted">budget via Google Ads</span>
                   ) : (
-                    <div className="row" style={{ gap: 4 }}>
+                    <div className="row" style={{ gap: 4, flexWrap: "wrap" }}>
                       <input
                         className="input"
                         style={{ width: 76, minHeight: 30, padding: "4px 7px" }}
@@ -467,6 +479,11 @@ function AdAccountsPanel() {
                       >
                         Set
                       </Button>
+                      {account.platform === "meta" ? (
+                        <Button size="sm" variant="quiet" onClick={() => setDelivery({ platform: account.platform, campaign })}>
+                          Delivery
+                        </Button>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -499,7 +516,99 @@ function AdAccountsPanel() {
           ))}
         </div>
       ) : null}
+
+      {delivery ? (
+        <MetaDeliveryModal
+          campaign={delivery.campaign}
+          onClose={() => setDelivery(null)}
+          onDone={() => {
+            setDelivery(null);
+            load();
+          }}
+        />
+      ) : null}
     </section>
+  );
+}
+
+function MetaDeliveryModal({
+  campaign,
+  onClose,
+  onDone,
+}: {
+  campaign: { id: string; name: string };
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { push } = useToast();
+  const [budget, setBudget] = useState("20");
+  const [headline, setHeadline] = useState("");
+  const [primary, setPrimary] = useState("");
+  const [link, setLink] = useState("");
+  const [image, setImage] = useState("");
+  const [country, setCountry] = useState("NG");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function publish() {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await api.createMetaDelivery(campaign.id, {
+        budget: Number(budget),
+        headline,
+        primaryText: primary,
+        link,
+        imageUrl: image,
+        country,
+      });
+      push(`Ad set, creative and ad created paused (${result.ad_id}).`);
+      onDone();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "We couldn't build the ad.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      title={"Build delivery for " + campaign.name}
+      onClose={onClose}
+      footer={
+        <>
+          <Button onClick={onClose} disabled={busy}>Cancel</Button>
+          <Button variant="primary" onClick={publish} loading={busy}>Create paused ad</Button>
+        </>
+      }
+    >
+      <p className="small muted mb-16">
+        Creates an ad set, creative and ad in Meta, all paused. Add the Page ID, landing URL and image URL
+        in Settings → Integrations → Meta Ads if you want defaults.
+      </p>
+      <div className="form-grid">
+        <Field label="Daily budget" htmlFor="delivery-budget">
+          <Input id="delivery-budget" type="number" min="1" value={budget} onChange={(event) => setBudget(event.target.value)} />
+        </Field>
+        <Field label="Country code" htmlFor="delivery-country">
+          <Input id="delivery-country" maxLength={2} value={country} onChange={(event) => setCountry(event.target.value.toUpperCase())} />
+        </Field>
+        <Field label="Headline" htmlFor="delivery-headline">
+          <Input id="delivery-headline" value={headline} onChange={(event) => setHeadline(event.target.value)} />
+        </Field>
+      </div>
+      <Field label="Primary text" htmlFor="delivery-primary">
+        <Textarea id="delivery-primary" rows={3} value={primary} onChange={(event) => setPrimary(event.target.value)} />
+      </Field>
+      <Field label="Landing link" htmlFor="delivery-link">
+        <Input id="delivery-link" value={link} onChange={(event) => setLink(event.target.value)} placeholder="https://…" />
+      </Field>
+      <Field label="Image URL" htmlFor="delivery-image">
+        <Input id="delivery-image" value={image} onChange={(event) => setImage(event.target.value)} placeholder="https://…/ad.jpg" />
+      </Field>
+      {error ? <p className="form-error">{error}</p> : null}
+    </Modal>
   );
 }
 

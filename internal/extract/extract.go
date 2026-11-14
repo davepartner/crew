@@ -92,3 +92,21 @@ func Available() error {
 	}
 	return nil
 }
+
+func TextWithKey(ctx context.Context, path, mime string, raw []byte, ocrKey string) string {
+	text := Text(ctx, path, mime, raw)
+	if strings.TrimSpace(ocrKey) == "" {
+		return text
+	}
+	if !strings.Contains(mime, "pdf") && !strings.HasPrefix(mime, "image/") {
+		return text
+	}
+
+	// A configured OCR key is also used to cross-check local OCR: keep
+	// whichever result contains more text.
+	remote := ocrSpace(ctx, path, ocrKey)
+	if len(strings.TrimSpace(remote)) > len(strings.TrimSpace(text)) {
+		return remote
+	}
+	return text
+}

@@ -11,20 +11,22 @@ import (
 	"time"
 )
 
-var integrationKinds = []string{"whatsapp", "meta_ads", "tiktok_ads", "google_ads", "brave_search"}
+var integrationKinds = []string{"whatsapp", "meta_ads", "tiktok_ads", "google_ads", "brave_search", "ocr_space", "exchange_rate"}
 
 func integrationFields(kind string) []string {
 	switch kind {
 	case "whatsapp":
 		return []string{"phone_number_id", "token", "default_to", "template_name", "template_language"}
 	case "meta_ads":
-		return []string{"account_id", "access_token"}
+		return []string{"account_id", "access_token", "page_id", "link_url", "image_url"}
 	case "tiktok_ads":
 		return []string{"advertiser_id", "access_token"}
 	case "google_ads":
 		return []string{"customer_id", "developer_token", "client_id", "client_secret", "refresh_token", "login_customer_id"}
-	case "brave_search":
+	case "brave_search", "ocr_space":
 		return []string{"api_key"}
+	case "exchange_rate":
+		return []string{"api_key", "base_currency"}
 	}
 	return nil
 }
@@ -179,7 +181,7 @@ func validIntegration(kind string) bool {
 
 func integrationReady(kind string, config map[string]string) bool {
 	for _, field := range integrationFields(kind) {
-		if field == "default_to" || field == "login_customer_id" || field == "template_name" || field == "template_language" {
+		if field == "default_to" || field == "login_customer_id" || field == "template_name" || field == "template_language" || field == "base_currency" || field == "page_id" || field == "link_url" || field == "image_url" {
 			continue
 		}
 		if strings.TrimSpace(config[field]) == "" {
@@ -225,6 +227,31 @@ func (s *Server) testIntegration(ctx context.Context, kind string, config map[st
 			return nil, fmt.Errorf("Brave Search rejected that key: %w", err)
 		}
 		return map[string]any{"connected": true}, nil
+	case "ocr_space":
+		var payload map[string]any
+		endpoint := "https://api.ocr.space/parse/imageurl?apikey=" + url.QueryEscape(config["api_key"]) +
+			"&url=https://ocr.space/ocrapi&language=eng"
+		if err := getJSON(ctx, endpoint, nil, &payload); err != nil {
+			return nil, fmt.Errorf("OCR.space rejected that key: %w", err)
+		}
+		if code, ok := payload["OCRExitCode"]; ok && fmt.Sprint(code) == "3" {
+			return nil, fmt.Errorf("OCR.space rejected that key")
+		}
+		return map[string]any{"connected": true}, nil
+	case "exchange_rate":
+		base := config["base_currency"]
+		if base == "" {
+			base = "USD"
+		}
+		var payload map[string]any
+		endpoint := "https://v6.exchangerate-api.com/v6/" + url.PathEscape(config["api_key"]) + "/latest/" + url.PathEscape(base)
+		if err := getJSON(ctx, endpoint, nil, &payload); err != nil {
+			return nil, fmt.Errorf("ExchangeRate-API rejected that key: %w", err)
+		}
+		if payload["result"] != "success" {
+			return nil, fmt.Errorf("ExchangeRate-API rejected that key")
+		}
+		return map[string]any{"connected": true, "base": base}, nil
 	}
 	return nil, fmt.Errorf("unsupported integration")
 }

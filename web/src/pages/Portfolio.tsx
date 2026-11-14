@@ -1,23 +1,34 @@
 import { useEffect, useState } from "react";
 import { api, ApiError, setCompany as rememberCompany, type PortfolioRow, type PortfolioTotal } from "../api";
-import { Button, Skeleton, useToast } from "../ui";
+import { Button, Select, Skeleton, useToast } from "../ui";
 
 export function Portfolio() {
   const { push } = useToast();
   const [rows, setRows] = useState<PortfolioRow[] | null>(null);
   const [totals, setTotals] = useState<PortfolioTotal[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [base, setBase] = useState("USD");
+  const [ratesAvailable, setRatesAvailable] = useState(false);
+  const [fxKey, setFxKey] = useState(false);
 
   useEffect(() => {
+    let live = true;
+    setRows(null);
     api
-      .portfolio()
+      .portfolio(base)
       .then((result) => {
+        if (!live) return;
         setRows(result.rows);
         setTotals(result.totals);
+        setRatesAvailable(result.rates_available);
+        setFxKey(result.fx_key);
       })
-      .catch((err) => setError(err instanceof ApiError ? err.message : "We couldn't build the portfolio."))
+      .catch((err) => live && setError(err instanceof ApiError ? err.message : "We couldn't build the portfolio."))
       .finally(() => undefined);
-  }, []);
+    return () => {
+      live = false;
+    };
+  }, [base]);
 
   function open(row: PortfolioRow) {
     rememberCompany(row.id);
@@ -60,15 +71,48 @@ export function Portfolio() {
           <h1 className="page-title">Portfolio</h1>
           <p className="page-sub">One view of every product: money, work and health.</p>
         </div>
-        <Button
-          onClick={() => {
-            push("Create products in Settings → Company.");
-            window.location.assign("/settings");
-          }}
-        >
-          New product
-        </Button>
+        <div className="row" style={{ gap: 8 }}>
+          <Select value={base} onChange={(event) => setBase(event.target.value)} aria-label="Report currency">
+            {["USD", "NGN", "GBP", "EUR", "KES", "GHS", "ZAR", "CAD", "INR", "AED"].map((code) => (
+              <option key={code} value={code}>{code}</option>
+            ))}
+          </Select>
+          <Button
+            onClick={() => {
+              push("Create products in Settings → Company.");
+              window.location.assign("/settings");
+            }}
+          >
+            New product
+          </Button>
+        </div>
       </header>
+
+      {!ratesAvailable ? (
+        <div className="setup-callout">
+          <div>
+            <strong>Convert every product into {base}</strong>
+            <p className="small muted" style={{ margin: "4px 0 0" }}>
+              Add an ExchangeRate-API key to convert NGN, USD and other currencies into one total.
+            </p>
+          </div>
+          <div className="row" style={{ gap: 8 }}>
+            <a className="button button-small" href="https://www.exchangerate-api.com/" target="_blank" rel="noreferrer noopener">
+              Get a key
+            </a>
+            <a className="button button-small button-primary" href="/settings">Add key</a>
+          </div>
+        </div>
+      ) : (
+        <p className="tiny muted" style={{ margin: "0 0 10px" }}>
+          Converted to {base} at the latest rates. Original amounts are kept in the product records.{" "}
+          {!fxKey ? (
+            <a href="https://www.exchangerate-api.com/" target="_blank" rel="noreferrer noopener">
+              Add a key for a supported SLA ↗
+            </a>
+          ) : null}
+        </p>
+      )}
 
       <div className="portfolio-totals">
         {totals.map((total) => (

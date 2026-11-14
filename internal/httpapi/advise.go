@@ -486,3 +486,20 @@ func (s *Server) webResearchDetailed(ctx context.Context, company *store.Company
 }
 
 var errNoModel = errors.New("no model")
+
+func (s *Server) handleResearchStatus(w http.ResponseWriter, r *http.Request) {
+	company := companyFrom(r)
+	ctx, cancel := context.WithTimeout(r.Context(), 6*time.Second)
+	defer cancel()
+
+	searx := research.Status(ctx, s.cfg.SearchURL)
+	brave := false
+	if config, err := s.loadIntegration(r.Context(), company.ID, "brave_search"); err == nil && config["api_key"] != "" {
+		brave = true
+	}
+
+	writeJSON(w, http.StatusOK, map[string]any{
+		"ok": true, "searxng": searx, "brave": brave,
+		"search_url": s.cfg.SearchURL,
+	})
+}

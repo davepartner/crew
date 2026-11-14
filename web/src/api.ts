@@ -170,6 +170,7 @@ export type CompanyFile = {
   name: string;
   mime: string;
   size: number;
+  has_text: boolean;
   created_at: string;
 };
 
@@ -215,6 +216,7 @@ export type PortfolioRow = {
   is_product: boolean;
   country: string;
   currency: string;
+  original_currency: string;
   stage: string;
   score: number;
   revenue: number;
@@ -663,6 +665,9 @@ export const api = {
   sendWhatsApp: (input: { to: string; message: string; template?: boolean }) =>
     request<{ ok: boolean }>("/api/send/whatsapp", { method: "POST", body: JSON.stringify(input) }),
 
+  researchStatus: () =>
+    request<{ ok: boolean; searxng: boolean; brave: boolean; search_url: string }>("/api/research/status"),
+
   adAccounts: () => request<{ ok: boolean; accounts: AdAccount[] }>("/api/adaccounts"),
   createAdCampaign: (platform: string, name: string, budget: number) =>
     request<{ ok: boolean; id: string }>(`/api/adaccounts/${platform}/campaigns`, {
@@ -674,14 +679,31 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ status }),
     }),
+  createMetaDelivery: (
+    campaignId: string,
+    input: { budget: number; headline: string; primaryText: string; link: string; imageUrl: string; country: string },
+  ) =>
+    request<{ ok: boolean; ad_set_id: string; creative_id: string; ad_id: string }>(
+      `/api/adaccounts/meta/campaigns/${campaignId}/delivery`,
+      { method: "POST", body: JSON.stringify(input) },
+    ),
   setAdCampaignBudget: (platform: string, id: string, budget: number) =>
     request<{ ok: boolean }>(`/api/adaccounts/${platform}/campaigns/${id}/budget`, {
       method: "POST",
       body: JSON.stringify({ budget }),
     }),
 
-  portfolio: () =>
-    request<{ ok: boolean; parent: Company; products: Company[]; rows: PortfolioRow[]; totals: PortfolioTotal[] }>("/api/portfolio"),
+  portfolio: (base = "USD") =>
+    request<{
+      ok: boolean;
+      parent: Company;
+      products: Company[];
+      rows: PortfolioRow[];
+      totals: PortfolioTotal[];
+      base: string;
+      rates_available: boolean;
+      fx_key: boolean;
+    }>(`/api/portfolio?base=${encodeURIComponent(base)}`),
   products: () => request<{ ok: boolean; products: Company[] }>("/api/products"),
   createProduct: (input: { name: string; description: string; audience: string; website: string }) =>
     request<{ ok: boolean; product: Company }>("/api/products", {

@@ -228,3 +228,25 @@ func Market(ctx context.Context, ticker string) (Quote, error) {
 func strip(value string) string {
 	return html.UnescapeString(tags.ReplaceAllString(value, " "))
 }
+
+func Status(ctx context.Context, searxURL string) bool {
+	searxURL = strings.TrimSpace(searxURL)
+	if searxURL == "" {
+		return false
+	}
+	endpoint := strings.TrimRight(searxURL, "/") + "?q=crew&format=json"
+	request, _ := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	request.Header.Set("Accept", "application/json")
+	response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request)
+	if err != nil || response.StatusCode != http.StatusOK {
+		return false
+	}
+	defer response.Body.Close()
+	var payload struct {
+		Results []json.RawMessage `json:"results"`
+	}
+	if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&payload); err != nil {
+		return false
+	}
+	return len(payload.Results) > 0
+}

@@ -1419,3 +1419,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .ad-account-row { grid-template-columns: minmax(0, 1fr) 80px; }
   .ad-account-row > :nth-child(3), .ad-account-row > :nth-child(4) { grid-column: span 1; }
 }
+
+.setup-callout { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; padding: 14px 16px; border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: var(--radius); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); margin-bottom: 14px; }
+.setup-callout strong { font-size: 14px; }

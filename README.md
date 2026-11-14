@@ -58,6 +58,8 @@ This is the rebuilt core of the Paperclip idea, with five deliberate changes:
 
 | Advise Me | Products |
 | ![Advise Me](docs/screenshots/advise-me-v2.png) | ![Products](docs/screenshots/products.png) |
+| Cyber Security | Threat graph |
+| ![Cyber Security](docs/screenshots/security-overview.png) | ![Threat graph](docs/screenshots/security-graph.png) |
 | Portfolio (converted) | Integrations & keys |
 | ![Portfolio](docs/screenshots/portfolio-converted.png) | ![Integrations](docs/screenshots/integrations-keys.png) |
 | Portfolio | Financial audit |

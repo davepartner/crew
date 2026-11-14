@@ -331,7 +331,7 @@ function ThreatGraph({ data }: { data: SecurityPayload }) {
       <div className="row-between">
         <div>
           <h2 className="section-title">Threat graph</h2>
-          <p className="small muted">Assets, indicators, reports and actors. Lines show observed relationships.</p>
+          <p className="small muted">Assets, findings, indicators, reports and actors. Lines show observed or derived relationships.</p>
         </div>
         <div className="security-legend">
           <span><i className="dot asset" /> Asset</span>

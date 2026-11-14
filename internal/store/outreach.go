@@ -106,6 +106,9 @@ func (s *Store) CreateOutreachProspect(ctx context.Context, companyID string, pr
 	if prospect.Source == "" {
 		prospect.Source = "manual"
 	}
+	if prospect.Signals == nil {
+		prospect.Signals = []OutreachSignal{}
+	}
 	signals, _ := json.Marshal(prospect.Signals)
 	_, err := s.db.ExecContext(ctx, `
 		INSERT INTO outreach_prospects (id, company_id, name, website, domain, industry, location, source, stage, score, signals, notes, last_contacted, created_at)

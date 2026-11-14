@@ -249,7 +249,7 @@ function Pipeline({
                 <div className="outreach-score-row">
                   <span className="outreach-score">{prospect.score}<span className="tiny muted">/100</span></span>
                   <div className="outreach-signal-chips">
-                    {prospect.signals.filter((signal) => signal.found).slice(0, 4).map((signal) => (
+                    {(prospect.signals ?? []).filter((signal) => signal.found).slice(0, 4).map((signal) => (
                       <span className="chip" key={signal.key}>{signal.label}</span>
                     ))}
                   </div>
@@ -327,7 +327,7 @@ function Campaigns({ data, onAdd, onChanged }: { data: OutreachPayload; onAdd: (
 
 function Outbox({ data, busy, onSend, onBatch, onChanged }: { data: OutreachPayload; busy: string | null; onSend: (message: OutreachMessage) => void; onBatch: () => void; onChanged: () => void }) {
   const { push } = useToast();
-  const messages = data.messages.filter((message) => message.status !== "replied" && message.status !== "optout");
+  const messages = (data.messages ?? []).filter((message) => message.status !== "replied" && message.status !== "optout");
   return (
     <section className="card">
       <div className="row-between">
@@ -382,7 +382,7 @@ function Outbox({ data, busy, onSend, onBatch, onChanged }: { data: OutreachPayl
 }
 
 function Replies({ data }: { data: OutreachPayload }) {
-  const replies = data.messages.filter((message) => message.status === "replied");
+  const replies = (data.messages ?? []).filter((message) => message.status === "replied");
   return (
     <section className="card">
       <h2 className="section-title">Replies</h2>

@@ -625,6 +625,18 @@ func (s *Server) outreachData(ctx context.Context, companyID string) (outreachPa
 	suppressions, _ := s.store.ListOutreachSuppressions(ctx, companyID)
 	settings, _ := s.store.GetOutreachSettings(ctx, companyID)
 	stats, _ := s.store.OutreachStats(ctx, companyID)
+	if prospects == nil {
+		prospects = []store.OutreachProspect{}
+	}
+	if campaigns == nil {
+		campaigns = []store.OutreachCampaign{}
+	}
+	if messages == nil {
+		messages = []store.OutreachMessage{}
+	}
+	if suppressions == nil {
+		suppressions = []store.OutreachSuppression{}
+	}
 	return outreachPayload{
 		Prospects: prospects, Campaigns: campaigns, Messages: messages,
 		Suppressions: suppressions, Settings: settings, Stats: stats,

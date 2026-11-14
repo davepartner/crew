@@ -441,7 +441,16 @@ function AdAccountsPanel() {
             <div className="ad-account" key={account.platform}>
               <div className="row-between">
                 <strong style={{ textTransform: "capitalize" }}>{account.platform}</strong>
-                <span className="tiny muted">{account.campaigns?.length ?? 0} campaigns</span>
+                <span className="row tiny muted" style={{ gap: 8 }}>
+                  {account.campaigns?.length ?? 0} campaigns
+                  <a
+                    href={account.platform === "meta" ? "https://adsmanager.facebook.com/" : account.platform === "tiktok" ? "https://ads.tiktok.com/" : "https://ads.google.com/"}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                  >
+                    Ads Manager ↗
+                  </a>
+                </span>
               </div>
               {account.error ? <p className="form-error">{account.error}</p> : null}
               {(account.campaigns ?? []).map((campaign) => (

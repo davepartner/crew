@@ -407,6 +407,36 @@ func (s *Server) handleSecurityStix(w http.ResponseWriter, r *http.Request) {
 		"created": time.Now().UTC().Format(time.RFC3339), "modified": time.Now().UTC().Format(time.RFC3339),
 		"name": company.Name, "identity_class": "organization",
 	}}
+	for _, asset := range payload.Assets {
+		base := map[string]any{
+			"spec_version": "2.1", "id": stixID("x-crew-asset", asset.ID),
+			"created": asset.CreatedAt.Format(time.RFC3339), "modified": asset.CreatedAt.Format(time.RFC3339),
+			"labels": []string{"company-asset", asset.Criticality},
+		}
+		switch asset.Type {
+		case "domain":
+			base["type"], base["value"] = "domain-name", asset.Value
+		case "ip":
+			base["type"], base["value"] = "ipv4-addr", asset.Value
+		case "email":
+			base["type"], base["value"] = "email-addr", asset.Value
+		case "url":
+			base["type"], base["value"] = "url", asset.Value
+		default:
+			base["type"], base["value"] = "x-crew-asset", asset.Value
+		}
+		objects = append(objects, base)
+	}
+
+	for _, finding := range payload.Findings {
+		objects = append(objects, map[string]any{
+			"type": "note", "spec_version": "2.1", "id": stixID("note", finding.ID),
+			"created": finding.CreatedAt.Format(time.RFC3339), "modified": finding.CreatedAt.Format(time.RFC3339),
+			"content":     finding.Title + "\n\n" + finding.Detail + "\n\nEvidence: " + finding.Evidence + "\nFix: " + finding.Fix,
+			"object_refs": []string{stixID("identity", company.ID)},
+		})
+	}
+
 	for _, indicator := range payload.Indicators {
 		pattern := stixPattern(indicator.Type, indicator.Value)
 		objects = append(objects, map[string]any{

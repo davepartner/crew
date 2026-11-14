@@ -1523,3 +1523,6 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 
 .nav { min-height: 0; overflow-y: auto; }
+
+.security-node.finding { fill: #d97706; }
+.dot.finding { background: #d97706; }

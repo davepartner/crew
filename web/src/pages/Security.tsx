@@ -164,7 +164,7 @@ export function Security() {
       ) : null}
 
       {tab === "overview" ? (
-        <Overview data={data} analysis={analysis} onScan={scan} scanning={scanning} />
+        <Overview data={data} analysis={analysis} onScan={scan} scanning={scanning} onSources={() => setTab("assets")} />
       ) : null}
       {tab === "graph" ? <ThreatGraph data={data} /> : null}
       {tab === "indicators" ? (
@@ -187,11 +187,13 @@ function Overview({
   analysis,
   onScan,
   scanning,
+  onSources,
 }: {
   data: SecurityPayload;
   analysis: SecurityAssessment["analysis"] | undefined;
   onScan: () => void;
   scanning: boolean;
+  onSources: () => void;
 }) {
   return (
     <div className="stack">
@@ -257,7 +259,7 @@ function Overview({
         )}
       </section>
 
-      <ProviderBanner providers={data.providers} />
+      <ProviderBanner providers={data.providers} onSources={onSources} />
     </div>
   );
 }
@@ -280,6 +282,7 @@ function ThreatGraph({ data }: { data: SecurityPayload }) {
   const indicators = data.indicators.slice(0, 9);
   const reports = data.reports.slice(0, 4);
   const actors = data.actors.slice(0, 3);
+  const findings = data.findings.slice(0, 6);
 
   const positions = useMemo(() => {
     const map = new Map<string, { x: number; y: number; type: string; label: string }>();
@@ -289,12 +292,13 @@ function ThreatGraph({ data }: { data: SecurityPayload }) {
         map.set(type + ":" + item.id, { x, y: 55 + index * gap, type, label: item.label });
       });
     };
-    column(assets.map((item) => ({ id: item.id, label: item.value })), 90, "asset");
-    column(indicators.map((item) => ({ id: item.id, label: item.value })), 620, "indicator");
-    column(reports.map((item) => ({ id: item.id, label: item.title })), 355, "report");
-    column(actors.map((item) => ({ id: item.id, label: item.name })), 355, "actor");
+    column(assets.map((item) => ({ id: item.id, label: item.value })), 80, "asset");
+    column(findings.map((item) => ({ id: item.id, label: item.title })), 280, "finding");
+    column(reports.map((item) => ({ id: item.id, label: item.title })), 460, "report");
+    column(actors.map((item) => ({ id: item.id, label: item.name })), 620, "actor");
+    column(indicators.map((item) => ({ id: item.id, label: item.value })), 810, "indicator");
     return map;
-  }, [assets, indicators, reports, actors]);
+  }, [assets, indicators, reports, actors, findings]);
 
   const edges: { from: { x: number; y: number }; to: { x: number; y: number } }[] = [];
   for (const indicator of indicators) {
@@ -305,6 +309,13 @@ function ThreatGraph({ data }: { data: SecurityPayload }) {
         if (from && to) edges.push({ from, to });
       }
     }
+  }
+  for (const finding of findings) {
+    const to = positions.get("finding:" + finding.id);
+    if (!to) continue;
+    const asset = assets.find((item) => finding.evidence.toLowerCase().includes(item.value.toLowerCase()));
+    const from = asset ? positions.get("asset:" + asset.id) : undefined;
+    if (from) edges.push({ from, to });
   }
   for (const report of reports) {
     const from = positions.get("report:" + report.id);
@@ -327,6 +338,7 @@ function ThreatGraph({ data }: { data: SecurityPayload }) {
           <span><i className="dot indicator" /> Indicator</span>
           <span><i className="dot report" /> Report</span>
           <span><i className="dot actor" /> Actor</span>
+          <span><i className="dot finding" /> Finding</span>
         </div>
       </div>
 
@@ -334,7 +346,7 @@ function ThreatGraph({ data }: { data: SecurityPayload }) {
         <p className="small muted mt-16">Add assets and run a scan to build the graph.</p>
       ) : (
         <div className="security-graph">
-          <svg viewBox="0 0 720 390" role="img" aria-label="Threat intelligence graph">
+          <svg viewBox="0 0 900 430" role="img" aria-label="Threat intelligence graph">
             {edges.map((edge, index) => (
               <line key={index} x1={edge.from.x} y1={edge.from.y} x2={edge.to.x} y2={edge.to.y} className="security-edge" />
             ))}
@@ -564,7 +576,7 @@ function ProviderCard({ provider, onSaved }: { provider: SecurityProvider; onSav
   );
 }
 
-function ProviderBanner({ providers }: { providers: SecurityProvider[] }) {
+function ProviderBanner({ providers, onSources }: { providers: SecurityProvider[]; onSources: () => void }) {
   const configured = providers.filter((provider) => provider.configured).length;
   if (configured > 0) return null;
   return (
@@ -575,7 +587,7 @@ function ProviderBanner({ providers }: { providers: SecurityProvider[] }) {
           Free feeds run now. VirusTotal, AbuseIPDB, OTX and Shodan add domain, IP and reputation context.
         </p>
       </div>
-      <a className="button button-small button-primary" href="/settings">Add keys</a>
+      <button className="button button-small button-primary" onClick={onSources}>Add keys</button>
     </div>
   );
 }

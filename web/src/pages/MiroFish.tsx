@@ -74,6 +74,14 @@ export function MiroFish() {
         setActive(result.run);
         if (result.run.status === "done" || result.run.status === "failed") {
           setRunning(false);
+          setData((current) =>
+            current
+              ? {
+                  ...current,
+                  runs: [result.run, ...current.runs.filter((item) => item.id !== result.run.id)].slice(0, 10),
+                }
+              : current,
+          );
           if (result.run.status === "failed") setRunError(result.run.error ?? "The simulation failed.");
         }
       } catch {

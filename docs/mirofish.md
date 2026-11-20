@@ -50,10 +50,11 @@ The estimate is deliberately conservative:
 - one persona-generation call
 - one batched reaction call per 8 agents per round
 - one synthesis call
-- ~38 output tokens/second and ~2.5s overhead per call
+- ~320 total tokens/second and ~1.5s overhead per call
 
 The estimate is shown **before** the run. Actual input/output tokens and elapsed
-time are recorded after the run.
+time are recorded after the run. Provider speed varies; treat the time as a
+range, not a deadline.
 
 ## Model
 

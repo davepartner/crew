@@ -1612,3 +1612,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .mirofish-grid { grid-template-columns: minmax(0, 1fr); }
   .mirofish-quotes { grid-template-columns: minmax(0, 1fr); }
 }
+
+.mirofish-suggestions .chip {
+  height: auto;
+  min-height: 0;
+  white-space: normal;
+  text-align: left;
+  line-height: 1.35;
+  padding: 6px 9px;
+  max-width: 100%;
+}

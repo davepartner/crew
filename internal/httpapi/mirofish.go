@@ -304,9 +304,9 @@ func estimateMiroFish(question string, agents, rounds int, model resolvedModel, 
 		outputTokens = 1200
 	}
 	total := promptTokens + outputTokens
-	seconds := int(math.Ceil(float64(calls)*2.5 + float64(total)/38.0))
-	if seconds < 12 {
-		seconds = 12
+	seconds := int(math.Ceil(float64(calls)*1.5 + float64(total)/320.0))
+	if seconds < 10 {
+		seconds = 10
 	}
 	cost := modelcatalog.EstimateCost(model.Provider.Key, model.Model, promptTokens, outputTokens)
 	return mirofishEstimate{

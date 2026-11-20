@@ -36,6 +36,7 @@ This is the rebuilt core of the Paperclip idea, with five deliberate changes:
 | Portfolio | Consolidated revenue, net, cash and health across every product |
 | Cyber Security | Company assets, threat feeds, indicators, graph and STIX 2.1 export |
 | Outreach | Sellbird-style discovery, paid-provider keys, signals, contacts, AI drafts, approval outbox and SMTP sending |
+| MiroFish | Company-scoped swarm prediction with suggested questions and pre-run token/time estimates |
 | Search | Self-hosted SearXNG for arbitrary web results; Brave optional |
 | Routines | Daily, weekday, weekly or monthly recurring tasks |
 | Goals | Numeric goals with progress, due dates and completion |

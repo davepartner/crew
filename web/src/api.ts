@@ -234,6 +234,59 @@ export type PortfolioTotal = {
   cash: number;
 };
 
+export type MiroFishEstimate = {
+  tokens: number;
+  prompt_tokens: number;
+  output_tokens: number;
+  seconds: number;
+  seconds_min: number;
+  seconds_max: number;
+  cost_usd: number;
+  calls: number;
+  model: string;
+  agents: number;
+  rounds: number;
+  estimate_label: string;
+};
+
+export type MiroFishResult = {
+  headline?: string;
+  prediction?: string;
+  confidence?: number;
+  scenarios?: { name: string; probability: number; description: string }[];
+  agent_reactions?: { persona: string; stance: string; quote: string }[];
+  second_order_effects?: string[];
+  recommended_actions?: string[];
+  dissent?: string[];
+  unknowns?: string[];
+};
+
+export type MiroFishRun = {
+  id: string;
+  question: string;
+  product: string;
+  agents: number;
+  rounds: number;
+  status: "queued" | "running" | "done" | "failed";
+  estimate_tokens: number;
+  input_tokens: number;
+  output_tokens: number;
+  elapsed_ms: number;
+  result?: MiroFishResult;
+  error?: string;
+  created_at: string;
+  completed_at?: string;
+};
+
+export type MiroFishPage = {
+  company: Company;
+  products: Company[];
+  suggestions: string[];
+  runs: MiroFishRun[];
+  model_ready: boolean;
+  model: string;
+};
+
 export type OutreachSignal = {
   key: string;
   label: string;
@@ -865,6 +918,19 @@ export const api = {
 
   researchStatus: () =>
     request<{ ok: boolean; searxng: boolean; brave: boolean; search_url: string }>("/api/research/status"),
+
+  mirofish: () => request<{ ok: boolean; mirofish: MiroFishPage }>("/api/mirofish"),
+  estimateMirofish: (question: string, agents: number, rounds: number) =>
+    request<{ ok: boolean; estimate: MiroFishEstimate }>("/api/mirofish/estimate", {
+      method: "POST",
+      body: JSON.stringify({ question, agents, rounds }),
+    }),
+  runMirofish: (input: { question: string; product: string; agents: number; rounds: number }) =>
+    request<{ ok: boolean; run: MiroFishRun; estimate: MiroFishEstimate }>("/api/mirofish/runs", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  mirofishRun: (id: string) => request<{ ok: boolean; run: MiroFishRun }>(`/api/mirofish/runs/${id}`),
 
   outreach: () => request<{ ok: boolean; outreach: OutreachPayload; company: Company }>("/api/outreach"),
   addOutreachProspect: (input: { name: string; website: string; industry: string; location: string; notes: string; email: string; contact: string; role: string }) =>

@@ -1567,3 +1567,48 @@ button, input, select, textarea { font: inherit; color: inherit; }
   .outreach-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .outreach-campaigns, .outreach-compare { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- mirofish ---------- */
+
+.mirofish-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.mirofish-grid { display: grid; grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr); gap: 14px; align-items: start; }
+.mirofish-controls { display: flex; flex-direction: column; gap: 12px; }
+.mirofish-suggestions { display: flex; flex-wrap: wrap; gap: 6px; }
+.mirofish-estimate { border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line)); border-radius: var(--radius-sm); padding: 11px 12px; background: color-mix(in srgb, var(--accent) 5%, var(--surface)); }
+.mirofish-estimate-main { display: flex; align-items: baseline; gap: 7px; margin: 2px 0 3px; }
+.mirofish-estimate-main strong { font-size: 18px; }
+.mirofish-output { min-height: 420px; display: flex; flex-direction: column; }
+.mirofish-running { margin: auto; text-align: center; max-width: 380px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.mirofish-running .spinner { width: 26px; height: 26px; border-width: 3px; }
+.mirofish-progress { width: 240px; height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin: 8px 0; }
+.mirofish-progress span { display: block; width: 40%; height: 100%; background: var(--accent); border-radius: 999px; animation: mirofish-slide 1.4s ease-in-out infinite; }
+@keyframes mirofish-slide { 0% { transform: translateX(-100%); } 100% { transform: translateX(350%); } }
+.mirofish-empty { margin: auto; text-align: center; max-width: 390px; padding: 30px 12px; }
+.mirofish-mark { font-size: 34px; color: var(--accent); display: block; margin-bottom: 8px; }
+.mirofish-report { display: flex; flex-direction: column; gap: 12px; }
+.mirofish-prediction { font-size: 14.5px; line-height: 1.6; color: var(--ink-soft); }
+.mirofish-confidence-track { height: 6px; background: var(--surface-2); border-radius: 999px; overflow: hidden; margin-top: 4px; }
+.mirofish-confidence-track span { display: block; height: 100%; background: var(--accent); border-radius: 999px; }
+.mirofish-run-meta { font-size: 11px; color: var(--muted); }
+.mirofish-scenarios { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.mirofish-scenario { border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 10px; }
+.mirofish-scenario p { margin: 5px 0 0; }
+.mirofish-section { border-top: 1px solid var(--line); padding-top: 12px; }
+.mirofish-quotes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 6px; }
+.mirofish-quotes blockquote { margin: 0; border-left: 3px solid var(--accent); padding: 8px 10px; background: var(--surface-2); border-radius: 5px; font-size: 12.5px; line-height: 1.5; }
+.mirofish-quotes cite { display: block; margin-top: 5px; font-style: normal; font-size: 10.5px; color: var(--muted); }
+.mirofish-two-col { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
+.mirofish-two-col ol, .mirofish-two-col ul { margin: 6px 0 0; padding-left: 18px; font-size: 12.5px; line-height: 1.5; color: var(--ink-soft); }
+.mirofish-two-col li { margin-bottom: 4px; }
+.mirofish-history { display: flex; flex-direction: column; gap: 4px; margin-top: 8px; }
+.mirofish-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; text-align: left; background: none; border: none; border-top: 1px solid var(--line); padding: 9px 2px; cursor: pointer; }
+.mirofish-history-row:first-child { border-top: none; }
+.mirofish-history-question { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12.5px; }
+.mirofish-status-done { background: #dcfce7; color: #166534; }
+.mirofish-status-failed { background: #fee2e2; color: #991b1b; }
+.mirofish-status-running, .mirofish-status-queued { background: #fef3c7; color: #92400e; }
+
+@media (max-width: 980px) {
+  .mirofish-grid { grid-template-columns: minmax(0, 1fr); }
+  .mirofish-quotes { grid-template-columns: minmax(0, 1fr); }
+}

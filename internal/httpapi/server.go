@@ -102,6 +102,11 @@ func (s *Server) routes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/files/{id}/download", s.requireUser(s.requireCompany(s.handleDownloadFile)))
 	mux.HandleFunc("DELETE /api/files/{id}", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleDeleteFile))))
 
+	mux.HandleFunc("GET /api/mirofish", s.requireUser(s.requireCompany(s.handleMiroFish)))
+	mux.HandleFunc("POST /api/mirofish/estimate", s.requireUser(s.requireCompany(s.handleMiroFishEstimate)))
+	mux.HandleFunc("POST /api/mirofish/runs", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleMiroFishRun))))
+	mux.HandleFunc("GET /api/mirofish/runs/{id}", s.requireUser(s.requireCompany(s.handleMiroFishRunStatus)))
+
 	mux.HandleFunc("GET /api/outreach", s.requireUser(s.requireCompany(s.handleOutreach)))
 	mux.HandleFunc("POST /api/outreach/prospects", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleOutreachProspect))))
 	mux.HandleFunc("POST /api/outreach/import", s.requireUser(s.requireCompany(s.requireRole("editor", s.handleOutreachImport))))

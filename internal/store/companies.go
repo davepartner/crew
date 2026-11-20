@@ -191,7 +191,8 @@ func (s *Store) DeleteCompany(ctx context.Context, userID, id string) error {
 		}
 		for _, table := range []string{"company_files", "financial_snapshots", "company_integrations", "company_advice",
 			"cti_assets", "cti_indicators", "cti_actors", "cti_reports", "cti_relationships", "cti_findings", "cti_assessments",
-			"outreach_prospects", "outreach_contacts", "outreach_campaigns", "outreach_steps", "outreach_messages", "outreach_suppressions", "outreach_settings"} {
+			"outreach_prospects", "outreach_contacts", "outreach_campaigns", "outreach_steps", "outreach_messages", "outreach_suppressions", "outreach_settings",
+			"mirofish_runs"} {
 			if _, err := tx.ExecContext(ctx, "DELETE FROM "+table+" WHERE company_id = ?", id); err != nil {
 				return err
 			}

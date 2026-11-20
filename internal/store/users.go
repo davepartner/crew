@@ -109,6 +109,7 @@ func (s *Store) DeleteUserData(ctx context.Context, id string) error {
 			`DELETE FROM outreach_messages WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
 			`DELETE FROM outreach_suppressions WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
 			`DELETE FROM outreach_settings WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
+			`DELETE FROM mirofish_runs WHERE company_id IN (SELECT id FROM companies WHERE user_id = ?)`,
 			`DELETE FROM companies WHERE user_id = ?`,
 		} {
 			if _, err := tx.ExecContext(ctx, stmt, id); err != nil {

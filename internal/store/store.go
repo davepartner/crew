@@ -184,6 +184,24 @@ func (s *Store) migrate(ctx context.Context) error {
 			created_at TEXT NOT NULL,
 			PRIMARY KEY (company_id, kind)
 		)`,
+		`CREATE TABLE IF NOT EXISTS mirofish_runs (
+			id TEXT PRIMARY KEY,
+			company_id TEXT NOT NULL,
+			user_id TEXT NOT NULL,
+			question TEXT NOT NULL,
+			product TEXT NOT NULL DEFAULT '',
+			agents INTEGER NOT NULL DEFAULT 12,
+			rounds INTEGER NOT NULL DEFAULT 3,
+			status TEXT NOT NULL DEFAULT 'queued',
+			estimate_tokens INTEGER NOT NULL DEFAULT 0,
+			input_tokens INTEGER NOT NULL DEFAULT 0,
+			output_tokens INTEGER NOT NULL DEFAULT 0,
+			elapsed_ms INTEGER NOT NULL DEFAULT 0,
+			result TEXT NOT NULL DEFAULT '',
+			error TEXT NOT NULL DEFAULT '',
+			created_at TEXT NOT NULL,
+			completed_at TEXT NOT NULL DEFAULT ''
+		)`,
 		`CREATE TABLE IF NOT EXISTS outreach_prospects (
 			id TEXT PRIMARY KEY,
 			company_id TEXT NOT NULL,

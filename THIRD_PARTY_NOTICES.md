@@ -99,3 +99,14 @@ CSV-compatible with Sellbird exports. No Sellbird source code is vendored.
 
 Crew's Outreach sending safeguards are informed by Warmbly's sequence caps,
 suppression and deliverability approach. No Warmbly source code is vendored.
+
+
+## MiroFish
+
+- Source: https://github.com/666ghj/MiroFish
+- Copyright (c) MiroFish contributors
+- GNU Affero General Public License v3.0
+
+Crew's MiroFish page is inspired by MiroFish's multi-agent prediction concept.
+No MiroFish source code is vendored or executed; Crew implements its own
+company-scoped simulation using the configured model.

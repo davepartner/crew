@@ -12,6 +12,7 @@ import { AdviseMe } from "./pages/AdviseMe";
 import { Portfolio } from "./pages/Portfolio";
 import { Security } from "./pages/Security";
 import { Outreach } from "./pages/Outreach";
+import { MiroFish } from "./pages/MiroFish";
 import { Routines } from "./pages/Routines";
 import { ActivityPage } from "./pages/Activity";
 import { Settings } from "./pages/Settings";
@@ -170,6 +171,7 @@ const navItems: NavItem[] = [
   { to: "/portfolio", label: "Portfolio", icon: "▦", match: (path) => path === "/portfolio" },
   { to: "/security", label: "Cyber Security", icon: "⛨", match: (path) => path === "/security" },
   { to: "/outreach", label: "Outreach", icon: "✉", match: (path) => path === "/outreach" },
+  { to: "/mirofish", label: "MiroFish", icon: "✦", match: (path) => path === "/mirofish" },
   { to: "/tasks", label: "Tasks", icon: "☑", match: (path) => path.startsWith("/tasks") },
   { to: "/helpers", label: "Helpers", icon: "✦", match: (path) => path.startsWith("/helpers") },
   { to: "/marketing", label: "Marketing", icon: "◈", match: (path) => path === "/marketing" },
@@ -540,6 +542,7 @@ function Route({
   if (path === "/portfolio") return <Portfolio />;
   if (path === "/security") return <Security />;
   if (path === "/outreach") return <Outreach />;
+  if (path === "/mirofish") return <MiroFish />;
   if (path === "/routines") return <Routines />;
   if (path === "/activity") return <ActivityPage />;
   if (path === "/settings")
